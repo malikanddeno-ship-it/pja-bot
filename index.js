@@ -13,27 +13,18 @@ const {
   ButtonBuilder,
   ButtonStyle,
   SlashCommandBuilder,
-  PermissionFlagsBits,
   REST,
   Routes,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-  ChannelType,
 } = require("discord.js");
 
 require("dotenv").config();
 
-// ─── CONFIG ──────────────────────────────────────────────────
 const MANAGER_CHANNEL_ID = "1514321227097837678";
 const ADMIN_ROLES = ["TEAM MANAGER", "CAPTIAN", "OWNER"];
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
-// ─── CLIENT ──────────────────────────────────────────────────
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -81,27 +72,24 @@ const commands = [
         { name: "Beginner", value: "Beginner" }, { name: "Intermediate", value: "Intermediate" },
         { name: "Advanced", value: "Advanced" }, { name: "Elite", value: "Elite" }
       ))
-    .addStringOption(o => o.setName("timezone").setDescription("Your timezone (e.g. GMT, EST, PST)").setRequired(true))
+    .addStringOption(o => o.setName("timezone").setDescription("Your timezone e.g. GMT").setRequired(true))
     .addStringOption(o => o.setName("availability").setDescription("When are you available?").setRequired(true))
     .addStringOption(o => o.setName("experience").setDescription("Previous team experience").setRequired(false))
-    .addStringOption(o => o.setName("clip").setDescription("Link to a gameplay clip (YouTube/Medal)").setRequired(false)),
-
+    .addStringOption(o => o.setName("clip").setDescription("Link to a gameplay clip").setRequired(false)),
   new SlashCommandBuilder().setName("checktryout").setDescription("Check your tryout application status"),
   new SlashCommandBuilder().setName("roster").setDescription("View the current PJA roster"),
   new SlashCommandBuilder().setName("stats").setDescription("View player stats")
-    .addUserOption(o => o.setName("player").setDescription("Player to look up (leave empty for yourself)").setRequired(false)),
+    .addUserOption(o => o.setName("player").setDescription("Player to look up").setRequired(false)),
   new SlashCommandBuilder().setName("schedule").setDescription("View upcoming PJA matches"),
   new SlashCommandBuilder().setName("results").setDescription("View recent match results"),
-
   new SlashCommandBuilder().setName("report").setDescription("Submit a match report [Manager only]")
     .addStringOption(o => o.setName("opponent").setDescription("Opponent team name").setRequired(true))
-    .addStringOption(o => o.setName("score").setDescription("Final score (e.g. 3-1)").setRequired(true))
+    .addStringOption(o => o.setName("score").setDescription("Final score e.g. 3-1").setRequired(true))
     .addStringOption(o => o.setName("result").setDescription("Match result").setRequired(true)
       .addChoices({ name: "Win", value: "Win" }, { name: "Loss", value: "Loss" }, { name: "Draw", value: "Draw" }))
-    .addStringOption(o => o.setName("scorers").setDescription("Goal scorers (comma separated)").setRequired(false))
+    .addStringOption(o => o.setName("scorers").setDescription("Goal scorers").setRequired(false))
     .addStringOption(o => o.setName("motm").setDescription("Man of the Match").setRequired(false))
     .addStringOption(o => o.setName("notes").setDescription("Extra notes").setRequired(false)),
-
   new SlashCommandBuilder().setName("addplayer").setDescription("Add a player to the roster [Manager only]")
     .addUserOption(o => o.setName("user").setDescription("Discord user").setRequired(true))
     .addStringOption(o => o.setName("ign").setDescription("In-game name").setRequired(true))
@@ -109,7 +97,8 @@ const commands = [
       .addChoices(
         { name: "GK", value: "GK" }, { name: "CB", value: "CB" }, { name: "LB", value: "LB" },
         { name: "RB", value: "RB" }, { name: "CDM", value: "CDM" }, { name: "CM", value: "CM" },
-        { name: "CAM", value: "CAM" }, { name: "LM/LW", value: "LM" }, { name: "RM/RW", value: "RM" }, { name: "ST", value: "ST" }
+        { name: "CAM", value: "CAM" }, { name: "LM/LW", value: "LM" }, { name: "RM/RW", value: "RM" },
+        { name: "ST", value: "ST" }
       ))
     .addStringOption(o => o.setName("role").setDescription("Team role").setRequired(true)
       .addChoices(
@@ -118,28 +107,23 @@ const commands = [
         { name: "Academy", value: "Academy" }, { name: "Trialist", value: "Trialist" }
       ))
     .addStringOption(o => o.setName("timezone").setDescription("Timezone").setRequired(false)),
-
-  new SlashCommandBuilder().setName("removeplayer").setDescription("Remove a player from the roster [Manager only]")
-    .addStringOption(o => o.setName("ign").setDescription("Player's in-game name").setRequired(true)),
-
-  new SlashCommandBuilder().setName("accept").setDescription("Accept a tryout application [Manager only]")
+  new SlashCommandBuilder().setName("removeplayer").setDescription("Remove a player [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("Player IGN").setRequired(true)),
+  new SlashCommandBuilder().setName("accept").setDescription("Accept a tryout [Manager only]")
     .addStringOption(o => o.setName("id").setDescription("Application ID").setRequired(true))
-    .addStringOption(o => o.setName("note").setDescription("Optional note to applicant").setRequired(false)),
-
-  new SlashCommandBuilder().setName("deny").setDescription("Deny a tryout application [Manager only]")
+    .addStringOption(o => o.setName("note").setDescription("Optional note").setRequired(false)),
+  new SlashCommandBuilder().setName("deny").setDescription("Deny a tryout [Manager only]")
     .addStringOption(o => o.setName("id").setDescription("Application ID").setRequired(true))
-    .addStringOption(o => o.setName("reason").setDescription("Reason for denial").setRequired(false)),
-
-  new SlashCommandBuilder().setName("trialist").setDescription("Move applicant to Trialist [Manager only]")
+    .addStringOption(o => o.setName("reason").setDescription("Reason").setRequired(false)),
+  new SlashCommandBuilder().setName("trialist").setDescription("Move to Trialist [Manager only]")
     .addStringOption(o => o.setName("id").setDescription("Application ID").setRequired(true)),
-
-  new SlashCommandBuilder().setName("applications").setDescription("List all tryout applications [Manager only]")
+  new SlashCommandBuilder().setName("applications").setDescription("List applications [Manager only]")
     .addStringOption(o => o.setName("filter").setDescription("Filter by status").setRequired(false)
       .addChoices(
         { name: "All", value: "all" }, { name: "Pending", value: "pending" },
-        { name: "Accepted", value: "accepted" }, { name: "Denied", value: "denied" }, { name: "Trialist", value: "trialist" }
+        { name: "Accepted", value: "accepted" }, { name: "Denied", value: "denied" },
+        { name: "Trialist", value: "trialist" }
       )),
-
   new SlashCommandBuilder().setName("ping").setDescription("Check if the bot is online"),
   new SlashCommandBuilder().setName("help").setDescription("List all PJA bot commands"),
 ].map(c => c.toJSON());
@@ -150,10 +134,10 @@ async function registerCommands() {
     console.log("🔄 Registering slash commands...");
     if (GUILD_ID) {
       await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-      console.log(`✅ Slash commands registered to guild ${GUILD_ID}`);
+      console.log(`✅ Commands registered to guild ${GUILD_ID}`);
     } else {
       await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-      console.log("✅ Global slash commands registered");
+      console.log("✅ Global commands registered");
     }
   } catch (err) {
     console.error("❌ Failed to register commands:", err);
@@ -164,252 +148,275 @@ client.once("ready", async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   client.user.setActivity("PJA Tryouts | /tryout", { type: 3 });
   await registerCommands();
-});
-
-client.on("interactionCreate", async (interaction) => {
+});client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user, member } = interaction;
 
-  if (commandName === "ping") {
-    return interaction.reply({ content: `🏓 Pong! Latency: **${client.ws.ping}ms** | Bot is online ✅`, ephemeral: true });
-  }
+  try {
 
-  if (commandName === "help") {
-    const embed = new EmbedBuilder()
-      .setTitle("🔷 Project Azure Bot — Commands").setColor(0x2563eb)
-      .addFields(
-        { name: "📋 Player Commands", value: ["`/tryout` — Apply for a tryout", "`/checktryout` — Check your status", "`/roster` — View the squad", "`/stats [player]` — View stats", "`/schedule` — Upcoming matches", "`/results` — Recent results"].join("\n") },
-        { name: "🔐 Manager Commands", value: ["`/applications` — View applications", "`/accept <id>` — Accept applicant", "`/deny <id>` — Deny applicant", "`/trialist <id>` — Offer trialist", "`/addplayer` — Add to roster", "`/removeplayer` — Remove from roster", "`/report` — Post match report"].join("\n") }
-      )
-      .setFooter({ text: "Project Azure (PJA) • Competitive VRFS" }).setTimestamp();
-    return interaction.reply({ embeds: [embed], ephemeral: true });
-  }
-
-  if (commandName === "tryout") {
-    if (tryoutApplications.has(user.id)) {
-      const existing = tryoutApplications.get(user.id);
-      return interaction.reply({ content: `⚠️ You already applied!\n**Status:** ${statusEmoji(existing.status)} ${existing.status.toUpperCase()}\n**ID:** \`${existing.id}\`\n\nUse \`/checktryout\` to check your status.`, ephemeral: true });
+    if (commandName === "ping") {
+      return interaction.reply({ content: `🏓 Pong! Latency: **${client.ws.ping}ms** | Bot is online ✅`, ephemeral: true });
     }
-    const appId = makeId();
-    const app = {
-      id: appId, userId: user.id, username: user.tag,
-      ign: interaction.options.getString("ign"),
-      position: interaction.options.getString("position"),
-      skill: interaction.options.getString("skill"),
-      timezone: interaction.options.getString("timezone"),
-      availability: interaction.options.getString("availability"),
-      experience: interaction.options.getString("experience") || "None provided",
-      clip: interaction.options.getString("clip") || "None provided",
-      status: "pending", submittedAt: new Date().toISOString(), note: "",
-    };
-    tryoutApplications.set(user.id, app);
-    try {
-      await user.send({ embeds: [new EmbedBuilder().setTitle("✅ Tryout Application Received — Project Azure").setColor(0x2563eb)
-        .setDescription("Your application has been submitted! Management will review it shortly.")
+
+    if (commandName === "help") {
+      const embed = new EmbedBuilder()
+        .setTitle("🔷 Project Azure Bot — Commands").setColor(0x2563eb)
         .addFields(
-          { name: "Application ID", value: `\`${appId}\``, inline: true }, { name: "IGN", value: app.ign, inline: true },
-          { name: "Position", value: app.position, inline: true }, { name: "Skill", value: app.skill, inline: true },
-          { name: "Timezone", value: app.timezone, inline: true }, { name: "Availability", value: app.availability },
-          { name: "Status", value: "⏳ Pending Review" }
-        ).setFooter({ text: "Project Azure (PJA) • We'll be in touch!" }).setTimestamp()] });
-    } catch {}
-    const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
-    if (managerChannel) {
-      const mgrEmbed = new EmbedBuilder().setTitle("📥 New Tryout Application").setColor(0xf59e0b)
-        .addFields(
-          { name: "Application ID", value: `\`${appId}\``, inline: true }, { name: "Discord", value: `<@${user.id}>`, inline: true },
-          { name: "IGN", value: app.ign, inline: true }, { name: "Position", value: app.position, inline: true },
-          { name: "Skill", value: app.skill, inline: true }, { name: "Timezone", value: app.timezone, inline: true },
-          { name: "Availability", value: app.availability }, { name: "Experience", value: app.experience }, { name: "Clip", value: app.clip }
-        ).setFooter({ text: `Use /accept ${appId} | /deny ${appId} | /trialist ${appId}` }).setTimestamp();
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`accept_${appId}`).setLabel("✅ Accept").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`trialist_${appId}`).setLabel("🔵 Trialist").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`deny_${appId}`).setLabel("❌ Deny").setStyle(ButtonStyle.Danger)
-      );
-      await managerChannel.send({ embeds: [mgrEmbed], components: [row] });
+          { name: "📋 Player Commands", value: ["`/tryout` — Apply for a tryout", "`/checktryout` — Check your status", "`/roster` — View the squad", "`/stats [player]` — View stats", "`/schedule` — Upcoming matches", "`/results` — Recent results"].join("\n") },
+          { name: "🔐 Manager Commands", value: ["`/applications` — View applications", "`/accept <id>` — Accept applicant", "`/deny <id>` — Deny applicant", "`/trialist <id>` — Offer trialist", "`/addplayer` — Add to roster", "`/removeplayer` — Remove from roster", "`/report` — Post match report"].join("\n") }
+        )
+        .setFooter({ text: "Project Azure (PJA) • Competitive VRFS" }).setTimestamp();
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
-    return interaction.reply({ content: `✅ **Application submitted!**\nYour ID: \`${appId}\` — save this!\nUse \`/checktryout\` to check status. Good luck! 🏆`, ephemeral: true });
-  }
 
-  if (commandName === "checktryout") {
-    const app = tryoutApplications.get(user.id);
-    if (!app) return interaction.reply({ content: "❌ No application found. Use `/tryout` to apply!", ephemeral: true });
-    const colorMap = { pending: 0xf59e0b, accepted: 0x22c55e, denied: 0xef4444, trialist: 0x3b82f6 };
-    const embed = new EmbedBuilder().setTitle(`${statusEmoji(app.status)} Tryout — ${app.ign}`).setColor(colorMap[app.status] || 0x6b7280)
-      .addFields(
-        { name: "Application ID", value: `\`${app.id}\``, inline: true }, { name: "Position", value: app.position, inline: true },
-        { name: "Skill", value: app.skill, inline: true },
-        { name: "Status", value: `${statusEmoji(app.status)} **${app.status.toUpperCase()}**`, inline: true },
-        { name: "Submitted", value: formatDate(app.submittedAt), inline: true }
-      ).setTimestamp();
-    if (app.note) embed.addFields({ name: "Manager Note", value: app.note });
-    return interaction.reply({ embeds: [embed], ephemeral: true });
-  }
+    if (commandName === "tryout") {
+      if (tryoutApplications.has(user.id)) {
+        const existing = tryoutApplications.get(user.id);
+        return interaction.reply({ content: `⚠️ You already applied!\n**Status:** ${statusEmoji(existing.status)} ${existing.status.toUpperCase()}\n**ID:** \`${existing.id}\`\n\nUse \`/checktryout\` to check your status.`, ephemeral: true });
+      }
+      const appId = makeId();
+      const app = {
+        id: appId, userId: user.id, username: user.tag,
+        ign: interaction.options.getString("ign"),
+        position: interaction.options.getString("position"),
+        skill: interaction.options.getString("skill"),
+        timezone: interaction.options.getString("timezone"),
+        availability: interaction.options.getString("availability"),
+        experience: interaction.options.getString("experience") || "None provided",
+        clip: interaction.options.getString("clip") || "None provided",
+        status: "pending", submittedAt: new Date().toISOString(), note: "",
+      };
+      tryoutApplications.set(user.id, app);
+      try {
+        await user.send({ embeds: [new EmbedBuilder().setTitle("✅ Tryout Application Received — Project Azure").setColor(0x2563eb)
+          .setDescription("Your application has been submitted! Management will review it shortly.")
+          .addFields(
+            { name: "Application ID", value: `\`${appId}\``, inline: true },
+            { name: "IGN", value: app.ign, inline: true },
+            { name: "Position", value: app.position, inline: true },
+            { name: "Skill", value: app.skill, inline: true },
+            { name: "Timezone", value: app.timezone, inline: true },
+            { name: "Availability", value: app.availability },
+            { name: "Status", value: "⏳ Pending Review" }
+          ).setFooter({ text: "Project Azure (PJA) • We'll be in touch!" }).setTimestamp()] });
+      } catch {}
+      const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
+      if (managerChannel) {
+        const mgrEmbed = new EmbedBuilder().setTitle("📥 New Tryout Application").setColor(0xf59e0b)
+          .addFields(
+            { name: "Application ID", value: `\`${appId}\``, inline: true },
+            { name: "Discord", value: `<@${user.id}>`, inline: true },
+            { name: "IGN", value: app.ign, inline: true },
+            { name: "Position", value: app.position, inline: true },
+            { name: "Skill", value: app.skill, inline: true },
+            { name: "Timezone", value: app.timezone, inline: true },
+            { name: "Availability", value: app.availability },
+            { name: "Experience", value: app.experience },
+            { name: "Clip", value: app.clip }
+          ).setFooter({ text: `Use /accept ${appId} | /deny ${appId} | /trialist ${appId}` }).setTimestamp();
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`accept_${appId}`).setLabel("✅ Accept").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`trialist_${appId}`).setLabel("🔵 Trialist").setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId(`deny_${appId}`).setLabel("❌ Deny").setStyle(ButtonStyle.Danger)
+        );
+        await managerChannel.send({ embeds: [mgrEmbed], components: [row] });
+      }
+      return interaction.reply({ content: `✅ **Application submitted!**\nYour ID: \`${appId}\` — save this!\nUse \`/checktryout\` to check status. Good luck! 🏆`, ephemeral: true });
+    }
 
-  if (commandName === "applications") {
-    if (!isAdmin(member)) return interaction.reply({ content: "❌ You need the **TEAM MANAGER**, **CAPTIAN**, or **OWNER** role.", ephemeral: true });
-    const filter = interaction.options.getString("filter") || "all";
-    let apps = [...tryoutApplications.values()];
-    if (filter !== "all") apps = apps.filter(a => a.status === filter);
-    if (apps.length === 0) return interaction.reply({ content: `📭 No ${filter === "all" ? "" : filter + " "}applications found.`, ephemeral: true });
-    const embed = new EmbedBuilder().setTitle(`📋 Applications (${filter.toUpperCase()}) — ${apps.length} total`).setColor(0x2563eb)
-      .setDescription(apps.slice(0, 25).map(a => `${statusEmoji(a.status)} **\`${a.id}\`** — ${a.ign} | ${a.position} | ${a.skill} | <@${a.userId}>`).join("\n"))
-      .setFooter({ text: "Use /accept <id> | /deny <id> | /trialist <id>" }).setTimestamp();
-    return interaction.reply({ embeds: [embed], ephemeral: true });
-  }
+    if (commandName === "checktryout") {
+      const app = tryoutApplications.get(user.id);
+      if (!app) return interaction.reply({ content: "❌ No application found. Use `/tryout` to apply!", ephemeral: true });
+      const colorMap = { pending: 0xf59e0b, accepted: 0x22c55e, denied: 0xef4444, trialist: 0x3b82f6 };
+      const embed = new EmbedBuilder().setTitle(`${statusEmoji(app.status)} Tryout — ${app.ign}`).setColor(colorMap[app.status] || 0x6b7280)
+        .addFields(
+          { name: "Application ID", value: `\`${app.id}\``, inline: true },
+          { name: "Position", value: app.position, inline: true },
+          { name: "Skill", value: app.skill, inline: true },
+          { name: "Status", value: `${statusEmoji(app.status)} **${app.status.toUpperCase()}**`, inline: true },
+          { name: "Submitted", value: formatDate(app.submittedAt), inline: true }
+        ).setTimestamp();
+      if (app.note) embed.addFields({ name: "Manager Note", value: app.note });
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
 
-  if (commandName === "accept") {
-    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
-    const id = interaction.options.getString("id").toUpperCase();
-    const note = interaction.options.getString("note") || "";
-    const app = [...tryoutApplications.values()].find(a => a.id === id);
-    if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
-    app.status = "accepted"; app.note = note;
+    if (commandName === "applications") {
+      if (!isAdmin(member)) return interaction.reply({ content: "❌ You need the **TEAM MANAGER**, **CAPTIAN**, or **OWNER** role.", ephemeral: true });
+      const filter = interaction.options.getString("filter") || "all";
+      let apps = [...tryoutApplications.values()];
+      if (filter !== "all") apps = apps.filter(a => a.status === filter);
+      if (apps.length === 0) return interaction.reply({ content: `📭 No ${filter === "all" ? "" : filter + " "}applications found.`, ephemeral: true });
+      const embed = new EmbedBuilder().setTitle(`📋 Applications (${filter.toUpperCase()}) — ${apps.length} total`).setColor(0x2563eb)
+        .setDescription(apps.slice(0, 25).map(a => `${statusEmoji(a.status)} **\`${a.id}\`** — ${a.ign} | ${a.position} | ${a.skill} | <@${a.userId}>`).join("\n"))
+        .setFooter({ text: "Use /accept <id> | /deny <id> | /trialist <id>" }).setTimestamp();
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (commandName === "accept") {
+      if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+      const id = interaction.options.getString("id").toUpperCase();
+      const note = interaction.options.getString("note") || "";
+      const app = [...tryoutApplications.values()].find(a => a.id === id);
+      if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
+      app.status = "accepted"; app.note = note;
+      try {
+        const applicant = await client.users.fetch(app.userId).catch(() => null);
+        if (applicant) {
+          const dm = new EmbedBuilder().setTitle("🎉 Tryout Application — ACCEPTED").setColor(0x22c55e)
+            .setDescription(`Congratulations **${app.ign}**! You've been **accepted** into Project Azure! 🎉 A manager will be in touch shortly.`)
+            .addFields({ name: "Position", value: app.position, inline: true }, { name: "Application ID", value: `\`${id}\``, inline: true });
+          if (note) dm.addFields({ name: "Manager Note", value: note });
+          dm.setFooter({ text: "Project Azure (PJA) • GG!" }).setTimestamp();
+          await applicant.send({ embeds: [dm] });
+        }
+      } catch {}
+      return interaction.reply({ content: `✅ **${app.ign}** ACCEPTED. Applicant notified.`, ephemeral: true });
+    }
+
+    if (commandName === "deny") {
+      if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+      const id = interaction.options.getString("id").toUpperCase();
+      const reason = interaction.options.getString("reason") || "No reason provided.";
+      const app = [...tryoutApplications.values()].find(a => a.id === id);
+      if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
+      app.status = "denied"; app.note = reason;
+      try {
+        const applicant = await client.users.fetch(app.userId).catch(() => null);
+        if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("❌ Tryout Application — Not Accepted").setColor(0xef4444)
+          .setDescription(`Hi **${app.ign}**, thank you for applying. Unfortunately your application was not successful at this time. Keep practising and feel free to apply again!`)
+          .addFields({ name: "Reason", value: reason }).setFooter({ text: "Project Azure (PJA) • Keep going!" }).setTimestamp()] });
+      } catch {}
+      return interaction.reply({ content: `❌ **${app.ign}** DENIED. Applicant notified.`, ephemeral: true });
+    }
+
+    if (commandName === "trialist") {
+      if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+      const id = interaction.options.getString("id").toUpperCase();
+      const app = [...tryoutApplications.values()].find(a => a.id === id);
+      if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
+      app.status = "trialist";
+      try {
+        const applicant = await client.users.fetch(app.userId).catch(() => null);
+        if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("🔵 Tryout Application — Trialist Offer!").setColor(0x3b82f6)
+          .setDescription(`Hi **${app.ign}**! You've been offered a **Trialist** spot at Project Azure! A manager will contact you with the details.`)
+          .setFooter({ text: "Project Azure (PJA) • Show us what you've got!" }).setTimestamp()] });
+      } catch {}
+      return interaction.reply({ content: `🔵 **${app.ign}** moved to TRIALIST. Applicant notified.`, ephemeral: true });
+                if (commandName === "roster") {
+      if (roster.length === 0) return interaction.reply({ content: "📋 The roster is empty. Use `/addplayer` to add players." });
+      const roleOrder = ["Captain", "Co-Captain", "Starter", "Backup", "Trialist", "Academy"];
+      const sorted = [...roster].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
+      const embed = new EmbedBuilder().setTitle("🔷 Project Azure — Current Roster").setColor(0x2563eb)
+        .setDescription(sorted.map(p => `**${p.ign}** — ${p.position} | ${p.role}${p.timezone ? ` | ${p.timezone}` : ""}`).join("\n"))
+        .setFooter({ text: `${roster.length} player(s) total` }).setTimestamp();
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "addplayer") {
+      if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+      const targetUser = interaction.options.getUser("user");
+      const ign = interaction.options.getString("ign");
+      const position = interaction.options.getString("position");
+      const role = interaction.options.getString("role");
+      const timezone = interaction.options.getString("timezone") || "Unknown";
+      if (roster.find(p => p.ign.toLowerCase() === ign.toLowerCase())) return interaction.reply({ content: `⚠️ **${ign}** is already on the roster.`, ephemeral: true });
+      roster.push({ id: makeId(), userId: targetUser.id, ign, position, role, timezone });
+      const embed = new EmbedBuilder().setTitle("✅ Player Added to Roster").setColor(0x22c55e)
+        .addFields(
+          { name: "IGN", value: ign, inline: true },
+          { name: "Position", value: position, inline: true },
+          { name: "Role", value: role, inline: true },
+          { name: "Timezone", value: timezone, inline: true },
+          { name: "Discord", value: `<@${targetUser.id}>`, inline: true }
+        ).setTimestamp();
+      const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
+      if (managerChannel) await managerChannel.send({ embeds: [embed] });
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "removeplayer") {
+      if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+      const ign = interaction.options.getString("ign");
+      const idx = roster.findIndex(p => p.ign.toLowerCase() === ign.toLowerCase());
+      if (idx === -1) return interaction.reply({ content: `❌ No player called **${ign}** found.`, ephemeral: true });
+      const [removed] = roster.splice(idx, 1);
+      return interaction.reply({ content: `🗑️ **${removed.ign}** (${removed.position} | ${removed.role}) removed from roster.` });
+    }
+
+    if (commandName === "stats") {
+      const target = interaction.options.getUser("player") || user;
+      const stats = playerStats.get(target.id);
+      const rosterEntry = roster.find(p => p.userId === target.id);
+      if (!stats && !rosterEntry) return interaction.reply({ content: `❌ No stats found for **${target.username}**.`, ephemeral: true });
+      const s = stats || { wins: 0, losses: 0, draws: 0, goals: 0, assists: 0, saves: 0, mvps: 0, matches: 0 };
+      const embed = new EmbedBuilder().setTitle(`📊 Stats — ${rosterEntry?.ign || target.username}`).setColor(0x2563eb).setThumbnail(target.displayAvatarURL())
+        .addFields(
+          { name: "⚽ Goals", value: `${s.goals}`, inline: true },
+          { name: "🎯 Assists", value: `${s.assists}`, inline: true },
+          { name: "🧤 Saves", value: `${s.saves}`, inline: true },
+          { name: "🏆 MVPs", value: `${s.mvps}`, inline: true },
+          { name: "🎮 Matches", value: `${s.matches}`, inline: true },
+          { name: "✅ Wins", value: `${s.wins}`, inline: true }
+        ).setTimestamp();
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "schedule") {
+      const upcoming = matchSchedule.filter(m => m.status === "upcoming" || m.status === "scheduled");
+      if (upcoming.length === 0) return interaction.reply({ content: "📅 No upcoming matches scheduled right now." });
+      const embed = new EmbedBuilder().setTitle("📅 Upcoming Matches — Project Azure").setColor(0x2563eb)
+        .setDescription(upcoming.slice(0, 10).map(m => `🆚 **vs ${m.opponent}** | ${m.date}${m.time ? " @ " + m.time : ""}`).join("\n")).setTimestamp();
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "results") {
+      const played = matchSchedule.filter(m => m.result);
+      if (played.length === 0) return interaction.reply({ content: "📊 No match results yet." });
+      const re = { Win: "✅", Loss: "❌", Draw: "🟡" };
+      const embed = new EmbedBuilder().setTitle("📊 Recent Results — Project Azure").setColor(0x2563eb)
+        .setDescription(played.slice(-10).reverse().map(m => `${re[m.result] || "❓"} **vs ${m.opponent}** | ${m.score} | ${m.result} | ${m.date}`).join("\n")).setTimestamp();
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (commandName === "report") {
+      if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+      const opponent = interaction.options.getString("opponent");
+      const score = interaction.options.getString("score");
+      const result = interaction.options.getString("result");
+      const scorers = interaction.options.getString("scorers") || "None";
+      const motm = interaction.options.getString("motm") || "TBD";
+      const notes = interaction.options.getString("notes") || "";
+      const matchId = makeId();
+      const matchData = { id: matchId, opponent, score, result, scorers, motm, notes, date: new Date().toISOString(), reportedBy: user.tag };
+      matchSchedule.push({ ...matchData, status: "completed" });
+      matchReports.set(matchId, matchData);
+      const resultColor = { Win: 0x22c55e, Loss: 0xef4444, Draw: 0xf59e0b }[result] || 0x6b7280;
+      const resultEmoji = { Win: "✅ WIN", Loss: "❌ LOSS", Draw: "🟡 DRAW" }[result] || result;
+      const embed = new EmbedBuilder().setTitle(`📋 Match Report — PJA vs ${opponent}`).setColor(resultColor)
+        .addFields(
+          { name: "Result", value: resultEmoji, inline: true },
+          { name: "Score", value: score, inline: true },
+          { name: "Match ID", value: `\`${matchId}\``, inline: true },
+          { name: "⚽ Goal Scorers", value: scorers },
+          { name: "🏆 Man of the Match", value: motm, inline: true },
+          { name: "📅 Date", value: formatDate(matchData.date), inline: true }
+        );
+      if (notes) embed.addFields({ name: "📝 Notes", value: notes });
+      embed.setFooter({ text: `Reported by ${user.tag}` }).setTimestamp();
+      await interaction.reply({ embeds: [embed] });
+      const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
+      if (managerChannel && managerChannel.id !== interaction.channelId) await managerChannel.send({ embeds: [embed] });
+    }
+
+  } catch (err) {
+    console.error(`❌ Error in /${commandName}:`, err);
     try {
-      const applicant = await client.users.fetch(app.userId).catch(() => null);
-      if (applicant) {
-        const dm = new EmbedBuilder().setTitle("🎉 Tryout Application — ACCEPTED").setColor(0x22c55e)
-          .setDescription(`Congratulations **${app.ign}**! You've been **accepted** into Project Azure! 🎉 A manager will be in touch shortly.`)
-          .addFields({ name: "Position", value: app.position, inline: true }, { name: "Application ID", value: `\`${id}\``, inline: true });
-        if (note) dm.addFields({ name: "Manager Note", value: note });
-        dm.setFooter({ text: "Project Azure (PJA) • GG!" }).setTimestamp();
-        await applicant.send({ embeds: [dm] });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: "❌ Something went wrong. Please try again.", ephemeral: true });
+      } else {
+        await interaction.reply({ content: "❌ Something went wrong. Please try again.", ephemeral: true });
       }
     } catch {}
-    return interaction.reply({ content: `✅ **${app.ign}** ACCEPTED. Applicant notified.`, ephemeral: true });
-  }
-
-  if (commandName === "deny") {
-    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
-    const id = interaction.options.getString("id").toUpperCase();
-    const reason = interaction.options.getString("reason") || "No reason provided.";
-    const app = [...tryoutApplications.values()].find(a => a.id === id);
-    if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
-    app.status = "denied"; app.note = reason;
-    try {
-      const applicant = await client.users.fetch(app.userId).catch(() => null);
-      if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("❌ Tryout Application — Not Accepted").setColor(0xef4444)
-        .setDescription(`Hi **${app.ign}**, thank you for applying. Unfortunately your application was not successful at this time. Keep practising and feel free to apply again!`)
-        .addFields({ name: "Reason", value: reason }).setFooter({ text: "Project Azure (PJA) • Keep going!" }).setTimestamp()] });
-    } catch {}
-    return interaction.reply({ content: `❌ **${app.ign}** DENIED. Applicant notified.`, ephemeral: true });
-  }
-
-  if (commandName === "trialist") {
-    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
-    const id = interaction.options.getString("id").toUpperCase();
-    const app = [...tryoutApplications.values()].find(a => a.id === id);
-    if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
-    app.status = "trialist";
-    try {
-      const applicant = await client.users.fetch(app.userId).catch(() => null);
-      if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("🔵 Tryout Application — Trialist Offer!").setColor(0x3b82f6)
-        .setDescription(`Hi **${app.ign}**! You've been offered a **Trialist** spot at Project Azure! A manager will contact you with details.`)
-        .setFooter({ text: "Project Azure (PJA) • Show us what you've got!" }).setTimestamp()] });
-    } catch {}
-    return interaction.reply({ content: `🔵 **${app.ign}** moved to TRIALIST. Applicant notified.`, ephemeral: true });
-  }
-
-  if (commandName === "roster") {
-    if (roster.length === 0) return interaction.reply({ content: "📋 The roster is empty. Use `/addplayer` to add players." });
-    const roleOrder = ["Captain", "Co-Captain", "Starter", "Backup", "Trialist", "Academy"];
-    const sorted = [...roster].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
-    const embed = new EmbedBuilder().setTitle("🔷 Project Azure — Current Roster").setColor(0x2563eb)
-      .setDescription(sorted.map(p => `**${p.ign}** — ${p.position} | ${p.role}${p.timezone ? ` | ${p.timezone}` : ""}`).join("\n"))
-      .setFooter({ text: `${roster.length} player(s) total` }).setTimestamp();
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === "addplayer") {
-    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
-    const targetUser = interaction.options.getUser("user");
-    const ign = interaction.options.getString("ign");
-    const position = interaction.options.getString("position");
-    const role = interaction.options.getString("role");
-    const timezone = interaction.options.getString("timezone") || "Unknown";
-        if (roster.find(p => p.ign.toLowerCase() === ign.toLowerCase())) return interaction.reply({ content: `⚠️ **${ign}** is already on the roster.`, ephemeral: true });
-    roster.push({ id: makeId(), userId: targetUser.id, ign, position, role, timezone });
-    const embed = new EmbedBuilder().setTitle("✅ Player Added to Roster").setColor(0x22c55e)
-      .addFields({ name: "IGN", value: ign, inline: true }, { name: "Position", value: position, inline: true }, { name: "Role", value: role, inline: true }, { name: "Timezone", value: timezone, inline: true }, { name: "Discord", value: `<@${targetUser.id}>`, inline: true })
-      .setTimestamp();
-    const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
-    if (managerChannel) await managerChannel.send({ embeds: [embed] });
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === "removeplayer") {
-    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
-    const ign = interaction.options.getString("ign");
-    const idx = roster.findIndex(p => p.ign.toLowerCase() === ign.toLowerCase());
-    if (idx === -1) return interaction.reply({ content: `❌ No player called **${ign}** found.`, ephemeral: true });
-    const [removed] = roster.splice(idx, 1);
-    return interaction.reply({ content: `🗑️ **${removed.ign}** (${removed.position} | ${removed.role}) removed from roster.` });
-  }
-
-  if (commandName === "stats") {
-    const target = interaction.options.getUser("player") || user;
-    const stats = playerStats.get(target.id);
-    const rosterEntry = roster.find(p => p.userId === target.id);
-    if (!stats && !rosterEntry) return interaction.reply({ content: `❌ No stats found for **${target.username}**.`, ephemeral: true });
-    const s = stats || { wins: 0, losses: 0, draws: 0, goals: 0, assists: 0, saves: 0, mvps: 0, matches: 0 };
-    const embed = new EmbedBuilder().setTitle(`📊 Stats — ${rosterEntry?.ign || target.username}`).setColor(0x2563eb).setThumbnail(target.displayAvatarURL())
-      .addFields(
-        { name: "⚽ Goals", value: `${s.goals}`, inline: true },
-        { name: "🎯 Assists", value: `${s.assists}`, inline: true },
-        { name: "🧤 Saves", value: `${s.saves}`, inline: true },
-        { name: "🏆 MVPs", value: `${s.mvps}`, inline: true },
-        { name: "🎮 Matches", value: `${s.matches}`, inline: true },
-        { name: "✅ Wins", value: `${s.wins}`, inline: true }
-      ).setTimestamp();
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === "schedule") {
-    const upcoming = matchSchedule.filter(m => m.status === "upcoming" || m.status === "scheduled");
-    if (upcoming.length === 0) return interaction.reply({ content: "📅 No upcoming matches scheduled right now." });
-    const embed = new EmbedBuilder().setTitle("📅 Upcoming Matches — Project Azure").setColor(0x2563eb)
-      .setDescription(upcoming.slice(0, 10).map(m => `🆚 **vs ${m.opponent}** | ${m.type} | ${m.date}${m.time ? " @ " + m.time : ""}`).join("\n")).setTimestamp();
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === "results") {
-    const played = matchSchedule.filter(m => m.result);
-    if (played.length === 0) return interaction.reply({ content: "📊 No match results yet." });
-    const re = { Win: "✅", Loss: "❌", Draw: "🟡" };
-    const embed = new EmbedBuilder().setTitle("📊 Recent Results — Project Azure").setColor(0x2563eb)
-      .setDescription(played.slice(-10).reverse().map(m => `${re[m.result] || "❓"} **vs ${m.opponent}** | ${m.score} | ${m.result} | ${m.date}`).join("\n")).setTimestamp();
-    return interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === "report") {
-    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
-    const opponent = interaction.options.getString("opponent");
-    const score = interaction.options.getString("score");
-    const result = interaction.options.getString("result");
-    const scorers = interaction.options.getString("scorers") || "None";
-    const motm = interaction.options.getString("motm") || "TBD";
-    const notes = interaction.options.getString("notes") || "";
-    const matchId = makeId();
-    const matchData = { id: matchId, opponent, score, result, scorers, motm, notes, date: new Date().toISOString(), reportedBy: user.tag };
-    matchSchedule.push({ ...matchData, status: "completed" });
-    matchReports.set(matchId, matchData);
-    const resultColor = { Win: 0x22c55e, Loss: 0xef4444, Draw: 0xf59e0b }[result] || 0x6b7280;
-    const resultEmoji = { Win: "✅ WIN", Loss: "❌ LOSS", Draw: "🟡 DRAW" }[result] || result;
-    const embed = new EmbedBuilder().setTitle(`📋 Match Report — PJA vs ${opponent}`).setColor(resultColor)
-      .addFields(
-        { name: "Result", value: resultEmoji, inline: true },
-        { name: "Score", value: score, inline: true },
-        { name: "Match ID", value: `\`${matchId}\``, inline: true },
-        { name: "⚽ Goal Scorers", value: scorers },
-        { name: "🏆 Man of the Match", value: motm, inline: true },
-        { name: "📅 Date", value: formatDate(matchData.date), inline: true }
-      );
-    if (notes) embed.addFields({ name: "📝 Notes", value: notes });
-    embed.setFooter({ text: `Reported by ${user.tag}` }).setTimestamp();
-    await interaction.reply({ embeds: [embed] });
-    const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
-    if (managerChannel && managerChannel.id !== interaction.channelId) await managerChannel.send({ embeds: [embed] });
   }
 });
 
@@ -453,4 +460,6 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 client.login(TOKEN);
-
+    }
+    
+          
