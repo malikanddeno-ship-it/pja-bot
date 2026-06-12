@@ -1,17 +1,16 @@
 {
-  "name": "pja-bot",
+  "name": "pja-discord-bot",
   "version": "1.0.0",
-  "description": "PJA Discord Bot",
+  "description": "Project Azure Discord Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "node-fetch": "^2.7.0"
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=18.0.0"
   }
 }
-
