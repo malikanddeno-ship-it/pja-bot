@@ -1,268 +1,331 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const fetch = require('node-fetch');
+// ============================================================
+//  PROJECT AZURE (PJA) — Discord Bot  |  index.js
+//  Manager Channel : 1514321227097837678
+//  Admin Roles     : TEAM MANAGER | CAPTIAN | OWNER
+// ============================================================
 
-require('./keep-alive');
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  REST,
+  Routes,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  ChannelType,
+} = require("discord.js");
 
-const TOKEN    = process.env.TOKEN;
+require("dotenv").config();
+
+// ─── CONFIG ──────────────────────────────────────────────────
+const MANAGER_CHANNEL_ID = "1514321227097837678";
+const ADMIN_ROLES = ["TEAM MANAGER", "CAPTIAN", "OWNER"];
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-const SITE_URL = process.env.SITE_URL;
 
-// ============================================================
-//  SLASH COMMAND DEFINITIONS
-// ============================================================
+// ─── CLIENT ──────────────────────────────────────────────────
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+  ],
+  partials: [Partials.Message, Partials.Channel],
+});
+
+const tryoutApplications = new Map();
+const matchReports = new Map();
+const playerStats = new Map();
+const matchSchedule = [];
+const roster = [];
+
+function isAdmin(member) {
+  return member.roles.cache.some((r) => ADMIN_ROLES.includes(r.name));
+}
+function makeId() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+function formatDate(d) {
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+function statusEmoji(s) {
+  return ({ pending: "⏳", accepted: "✅", denied: "❌", trialist: "🔵" }[s] || "❓");
+}
+
 const commands = [
   new SlashCommandBuilder()
-    .setName('roster')
-    .setDescription('Show the current PJA squad'),
+    .setName("tryout").setDescription("Apply for a PJA tryout")
+    .addStringOption(o => o.setName("ign").setDescription("Your in-game name").setRequired(true))
+    .addStringOption(o => o.setName("position").setDescription("Your preferred position").setRequired(true)
+      .addChoices(
+        { name: "Goalkeeper (GK)", value: "GK" }, { name: "Defender (CB)", value: "CB" },
+        { name: "Left Back (LB)", value: "LB" }, { name: "Right Back (RB)", value: "RB" },
+        { name: "Defensive Mid (CDM)", value: "CDM" }, { name: "Central Mid (CM)", value: "CM" },
+        { name: "Attacking Mid (CAM)", value: "CAM" }, { name: "Left Mid (LM)", value: "LM" },
+        { name: "Left Wing (LW)", value: "LW" }, { name: "Right Mid (RM)", value: "RM" },
+        { name: "Right Wing (RW)", value: "RW" }, { name: "Striker (ST)", value: "ST" }
+      ))
+    .addStringOption(o => o.setName("skill").setDescription("Your skill level").setRequired(true)
+      .addChoices(
+        { name: "Beginner", value: "Beginner" }, { name: "Intermediate", value: "Intermediate" },
+        { name: "Advanced", value: "Advanced" }, { name: "Elite", value: "Elite" }
+      ))
+    .addStringOption(o => o.setName("timezone").setDescription("Your timezone (e.g. GMT, EST, PST)").setRequired(true))
+    .addStringOption(o => o.setName("availability").setDescription("When are you available?").setRequired(true))
+    .addStringOption(o => o.setName("experience").setDescription("Previous team experience").setRequired(false))
+    .addStringOption(o => o.setName("clip").setDescription("Link to a gameplay clip (YouTube/Medal)").setRequired(false)),
 
-  new SlashCommandBuilder()
-    .setName('stats')
-    .setDescription('Show the PJA stats leaderboard')
-    .addStringOption(opt =>
-      opt.setName('category')
-        .setDescription('Stat to show')
-        .addChoices(
-          { name: 'Goals',        value: 'goals' },
-          { name: 'Assists',      value: 'assists' },
-          { name: 'Saves',        value: 'saves' },
-          { name: 'Clean Sheets', value: 'cleanSheets' },
-          { name: 'MVPs',         value: 'mvps' },
-          { name: 'Matches',      value: 'matches' }
-        )
-    ),
+  new SlashCommandBuilder().setName("checktryout").setDescription("Check your tryout application status"),
+  new SlashCommandBuilder().setName("roster").setDescription("View the current PJA roster"),
+  new SlashCommandBuilder().setName("stats").setDescription("View player stats")
+    .addUserOption(o => o.setName("player").setDescription("Player to look up (leave empty for yourself)").setRequired(false)),
+  new SlashCommandBuilder().setName("schedule").setDescription("View upcoming PJA matches"),
+  new SlashCommandBuilder().setName("results").setDescription("View recent match results"),
 
-  new SlashCommandBuilder()
-    .setName('nextmatch')
-    .setDescription('Show the next upcoming PJA fixture'),
+  new SlashCommandBuilder().setName("report").setDescription("Submit a match report [Manager only]")
+    .addStringOption(o => o.setName("opponent").setDescription("Opponent team name").setRequired(true))
+    .addStringOption(o => o.setName("score").setDescription("Final score (e.g. 3-1)").setRequired(true))
+    .addStringOption(o => o.setName("result").setDescription("Match result").setRequired(true)
+      .addChoices({ name: "Win", value: "Win" }, { name: "Loss", value: "Loss" }, { name: "Draw", value: "Draw" }))
+    .addStringOption(o => o.setName("scorers").setDescription("Goal scorers (comma separated)").setRequired(false))
+    .addStringOption(o => o.setName("motm").setDescription("Man of the Match").setRequired(false))
+    .addStringOption(o => o.setName("notes").setDescription("Extra notes").setRequired(false)),
 
-  new SlashCommandBuilder()
-    .setName('motm')
-    .setDescription('Show the last approved Man of the Match'),
+  new SlashCommandBuilder().setName("addplayer").setDescription("Add a player to the roster [Manager only]")
+    .addUserOption(o => o.setName("user").setDescription("Discord user").setRequired(true))
+    .addStringOption(o => o.setName("ign").setDescription("In-game name").setRequired(true))
+    .addStringOption(o => o.setName("position").setDescription("Position").setRequired(true)
+      .addChoices(
+        { name: "GK", value: "GK" }, { name: "CB", value: "CB" }, { name: "LB", value: "LB" },
+        { name: "RB", value: "RB" }, { name: "CDM", value: "CDM" }, { name: "CM", value: "CM" },
+        { name: "CAM", value: "CAM" }, { name: "LM/LW", value: "LM" }, { name: "RM/RW", value: "RM" }, { name: "ST", value: "ST" }
+      ))
+    .addStringOption(o => o.setName("role").setDescription("Team role").setRequired(true)
+      .addChoices(
+        { name: "Captain", value: "Captain" }, { name: "Co-Captain", value: "Co-Captain" },
+        { name: "Starter", value: "Starter" }, { name: "Backup", value: "Backup" },
+        { name: "Academy", value: "Academy" }, { name: "Trialist", value: "Trialist" }
+      ))
+    .addStringOption(o => o.setName("timezone").setDescription("Timezone").setRequired(false)),
 
-].map(cmd => cmd.toJSON());
+  new SlashCommandBuilder().setName("removeplayer").setDescription("Remove a player from the roster [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("Player's in-game name").setRequired(true)),
 
-// ============================================================
-//  REGISTER COMMANDS WITH DISCORD
-// ============================================================
-async function registerCommands(clientId) {
-  const rest = new REST({ version: '10' }).setToken(TOKEN);
+  new SlashCommandBuilder().setName("accept").setDescription("Accept a tryout application [Manager only]")
+    .addStringOption(o => o.setName("id").setDescription("Application ID").setRequired(true))
+    .addStringOption(o => o.setName("note").setDescription("Optional note to applicant").setRequired(false)),
+
+  new SlashCommandBuilder().setName("deny").setDescription("Deny a tryout application [Manager only]")
+    .addStringOption(o => o.setName("id").setDescription("Application ID").setRequired(true))
+    .addStringOption(o => o.setName("reason").setDescription("Reason for denial").setRequired(false)),
+
+  new SlashCommandBuilder().setName("trialist").setDescription("Move applicant to Trialist [Manager only]")
+    .addStringOption(o => o.setName("id").setDescription("Application ID").setRequired(true)),
+
+  new SlashCommandBuilder().setName("applications").setDescription("List all tryout applications [Manager only]")
+    .addStringOption(o => o.setName("filter").setDescription("Filter by status").setRequired(false)
+      .addChoices(
+        { name: "All", value: "all" }, { name: "Pending", value: "pending" },
+        { name: "Accepted", value: "accepted" }, { name: "Denied", value: "denied" }, { name: "Trialist", value: "trialist" }
+      )),
+
+  new SlashCommandBuilder().setName("ping").setDescription("Check if the bot is online"),
+  new SlashCommandBuilder().setName("help").setDescription("List all PJA bot commands"),
+].map(c => c.toJSON());
+
+async function registerCommands() {
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
   try {
-    console.log('Registering slash commands...');
-    await rest.put(
-      Routes.applicationGuildCommands(clientId, GUILD_ID),
-      { body: commands }
-    );
-    console.log('Slash commands registered.');
-  } catch (err) {
-    console.error('Failed to register commands:', err);
-  }
-}
-
-// ============================================================
-//  FETCH FROM TABLE API
-// ============================================================
-async function fetchTable(table) {
-  try {
-    const res  = await fetch(`${SITE_URL}/tables/${table}?limit=500`);
-    const json = await res.json();
-    return json.data || [];
-  } catch (err) {
-    console.error(`Failed to fetch ${table}:`, err);
-    return [];
-  }
-}
-
-function parseField(val) {
-  if (typeof val === 'string') {
-    try { return JSON.parse(val); } catch { return val; }
-  }
-  return val;
-}
-
-// ============================================================
-//  COMMAND HANDLERS
-// ============================================================
-
-// /roster
-async function handleRoster(interaction) {
-  await interaction.deferReply();
-  const roster = await fetchTable('roster');
-
-  if (!roster.length) {
-    return interaction.editReply('No players on the roster yet.');
-  }
-
-  const roles  = ['Captain', 'Co-Captain', 'Starter', 'Backup', 'Academy', 'Trialist'];
-  const sorted = [...roster].sort((a, b) =>
-    roles.indexOf(a.role) - roles.indexOf(b.role)
-  );
-
-  const embed = new EmbedBuilder()
-    .setTitle('🔵 PJA Squad')
-    .setColor(0x3b82f6)
-    .setTimestamp();
-
-  const groups = {};
-  sorted.forEach(p => {
-    if (p.status === 'Inactive') return;
-    const role = p.role || 'Other';
-    if (!groups[role]) groups[role] = [];
-    groups[role].push(`**${p.name}** — ${p.position}${p.number ? ` (#${p.number})` : ''}`);
-  });
-
-  Object.entries(groups).forEach(([role, players]) => {
-    embed.addFields({ name: role, value: players.join('\n'), inline: false });
-  });
-
-  embed.setFooter({ text: `${roster.filter(p => p.status !== 'Inactive').length} active players` });
-  return interaction.editReply({ embeds: [embed] });
-}
-
-// /stats
-async function handleStats(interaction) {
-  await interaction.deferReply();
-  const category = interaction.options.getString('category') || 'goals';
-  const stats    = await fetchTable('stats');
-
-  if (!stats.length) {
-    return interaction.editReply('No stats recorded yet.');
-  }
-
-  const labels = {
-    goals: 'Goals', assists: 'Assists', saves: 'Saves',
-    cleanSheets: 'Clean Sheets', mvps: 'MVPs', matches: 'Matches'
-  };
-
-  const sorted = [...stats]
-    .sort((a, b) => (b[category] || 0) - (a[category] || 0))
-    .slice(0, 10);
-
-  const medals = ['🥇', '🥈', '🥉'];
-  const rows   = sorted.map((p, i) =>
-    `${medals[i] || `${i + 1}.`} **${p.name}** — ${p[category] || 0} ${labels[category]}`
-  ).join('\n');
-
-  const embed = new EmbedBuilder()
-    .setTitle(`📊 PJA Leaderboard — ${labels[category]}`)
-    .setColor(0x3b82f6)
-    .setDescription(rows || 'No data.')
-    .setTimestamp();
-
-  return interaction.editReply({ embeds: [embed] });
-}
-
-// /nextmatch
-async function handleNextMatch(interaction) {
-  await interaction.deferReply();
-  const matches = await fetchTable('matches');
-
-  const upcoming = matches
-    .filter(m => m.status === 'Upcoming')
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  if (!upcoming.length) {
-    return interaction.editReply('No upcoming matches scheduled.');
-  }
-
-  const m      = upcoming[0];
-  const isHome = m.homeTeam === 'PJA';
-  const fixture = isHome ? `PJA vs ${m.opponent}` : `PJA @ ${m.opponent}`;
-  const dateStr = m.date
-    ? new Date(m.date + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday:'long', month:'long', day:'numeric', year:'numeric'
-      })
-    : 'Date TBD';
-
-  const embed = new EmbedBuilder()
-    .setTitle(`📅 Next Match — ${fixture}`)
-    .setColor(0x3b82f6)
-    .addFields(
-      { name: 'Date',     value: dateStr,                 inline: true },
-      { name: 'Time',     value: m.time || 'TBD',         inline: true },
-      { name: 'Type',     value: m.matchType || 'League', inline: true },
-      { name: 'Location', value: isHome ? '🏠 Home' : '✈️ Away', inline: true }
-    )
-    .setTimestamp();
-
-  if (upcoming.length > 1) {
-    const more = upcoming.slice(1, 4).map(mx => {
-      const d = mx.date
-        ? new Date(mx.date + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' })
-        : 'TBD';
-      return `${d} — ${mx.homeTeam === 'PJA' ? 'vs' : '@'} ${mx.opponent}`;
-    }).join('\n');
-    embed.addFields({ name: 'Also Coming Up', value: more, inline: false });
-  }
-
-  return interaction.editReply({ embeds: [embed] });
-}
-
-// /motm
-async function handleMotm(interaction) {
-  await interaction.deferReply();
-  const reports = await fetchTable('match_reports');
-
-  const approved = reports
-    .map(r => ({ ...r, motmApproved: parseField(r.motmApproved), lineup: parseField(r.lineup) }))
-    .filter(r => r.motmApproved && r.motmApproved.playerName)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  if (!approved.length) {
-    return interaction.editReply('No MOTM has been approved yet.');
-  }
-
-  const r       = approved[0];
-  const motm    = r.motmApproved;
-  const isHome  = r.homeTeam === 'PJA';
-  const fixture = isHome ? `PJA vs ${r.opponent}` : `PJA @ ${r.opponent}`;
-  const dateStr = r.date
-    ? new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', {
-        month:'long', day:'numeric', year:'numeric'
-      })
-    : '';
-
-  const embed = new EmbedBuilder()
-    .setTitle(`👑 Man of the Match — ${motm.playerName}`)
-    .setColor(0xfbbf24)
-    .setDescription(`**${fixture}**${dateStr ? ` · ${dateStr}` : ''}`)
-    .addFields(
-      { name: 'Match Type', value: r.matchType || 'League', inline: true },
-      { name: 'Score',      value: r.score || 'N/A',        inline: true },
-      { name: 'Result',     value: r.result || 'N/A',       inline: true }
-    )
-    .setFooter({ text: 'Approved by manager' })
-    .setTimestamp();
-
-  return interaction.editReply({ embeds: [embed] });
-}
-
-// ============================================================
-//  BOT CLIENT
-// ============================================================
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-
-client.once('ready', async () => {
-  console.log(`✅ PJA Bot online as ${client.user.tag}`);
-  await registerCommands(client.user.id);
-});
-
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-  try {
-    switch (interaction.commandName) {
-      case 'roster':    await handleRoster(interaction);    break;
-      case 'stats':     await handleStats(interaction);     break;
-      case 'nextmatch': await handleNextMatch(interaction); break;
-      case 'motm':      await handleMotm(interaction);      break;
+    console.log("🔄 Registering slash commands...");
+    if (GUILD_ID) {
+      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+      console.log(`✅ Slash commands registered to guild ${GUILD_ID}`);
+    } else {
+      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+      console.log("✅ Global slash commands registered");
     }
   } catch (err) {
-    console.error('Command error:', err);
-    const msg = { content: '❌ Something went wrong.', ephemeral: true };
-    if (interaction.deferred) interaction.editReply(msg);
-    else interaction.reply(msg);
+    console.error("❌ Failed to register commands:", err);
   }
+}
+
+client.once("ready", async () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+  client.user.setActivity("PJA Tryouts | /tryout", { type: 3 });
+  await registerCommands();
 });
 
-client.login(TOKEN);
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  const { commandName, user, member } = interaction;
+
+  if (commandName === "ping") {
+    return interaction.reply({ content: `🏓 Pong! Latency: **${client.ws.ping}ms** | Bot is online ✅`, ephemeral: true });
+  }
+
+  if (commandName === "help") {
+    const embed = new EmbedBuilder()
+      .setTitle("🔷 Project Azure Bot — Commands").setColor(0x2563eb)
+      .addFields(
+        { name: "📋 Player Commands", value: ["`/tryout` — Apply for a tryout", "`/checktryout` — Check your status", "`/roster` — View the squad", "`/stats [player]` — View stats", "`/schedule` — Upcoming matches", "`/results` — Recent results"].join("\n") },
+        { name: "🔐 Manager Commands", value: ["`/applications` — View applications", "`/accept <id>` — Accept applicant", "`/deny <id>` — Deny applicant", "`/trialist <id>` — Offer trialist", "`/addplayer` — Add to roster", "`/removeplayer` — Remove from roster", "`/report` — Post match report"].join("\n") }
+      )
+      .setFooter({ text: "Project Azure (PJA) • Competitive VRFS" }).setTimestamp();
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (commandName === "tryout") {
+    if (tryoutApplications.has(user.id)) {
+      const existing = tryoutApplications.get(user.id);
+      return interaction.reply({ content: `⚠️ You already applied!\n**Status:** ${statusEmoji(existing.status)} ${existing.status.toUpperCase()}\n**ID:** \`${existing.id}\`\n\nUse \`/checktryout\` to check your status.`, ephemeral: true });
+    }
+    const appId = makeId();
+    const app = {
+      id: appId, userId: user.id, username: user.tag,
+      ign: interaction.options.getString("ign"),
+      position: interaction.options.getString("position"),
+      skill: interaction.options.getString("skill"),
+      timezone: interaction.options.getString("timezone"),
+      availability: interaction.options.getString("availability"),
+      experience: interaction.options.getString("experience") || "None provided",
+      clip: interaction.options.getString("clip") || "None provided",
+      status: "pending", submittedAt: new Date().toISOString(), note: "",
+    };
+    tryoutApplications.set(user.id, app);
+    try {
+      await user.send({ embeds: [new EmbedBuilder().setTitle("✅ Tryout Application Received — Project Azure").setColor(0x2563eb)
+        .setDescription("Your application has been submitted! Management will review it shortly.")
+        .addFields(
+          { name: "Application ID", value: `\`${appId}\``, inline: true }, { name: "IGN", value: app.ign, inline: true },
+          { name: "Position", value: app.position, inline: true }, { name: "Skill", value: app.skill, inline: true },
+          { name: "Timezone", value: app.timezone, inline: true }, { name: "Availability", value: app.availability },
+          { name: "Status", value: "⏳ Pending Review" }
+        ).setFooter({ text: "Project Azure (PJA) • We'll be in touch!" }).setTimestamp()] });
+    } catch {}
+    const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
+    if (managerChannel) {
+      const mgrEmbed = new EmbedBuilder().setTitle("📥 New Tryout Application").setColor(0xf59e0b)
+        .addFields(
+          { name: "Application ID", value: `\`${appId}\``, inline: true }, { name: "Discord", value: `<@${user.id}>`, inline: true },
+          { name: "IGN", value: app.ign, inline: true }, { name: "Position", value: app.position, inline: true },
+          { name: "Skill", value: app.skill, inline: true }, { name: "Timezone", value: app.timezone, inline: true },
+          { name: "Availability", value: app.availability }, { name: "Experience", value: app.experience }, { name: "Clip", value: app.clip }
+        ).setFooter({ text: `Use /accept ${appId} | /deny ${appId} | /trialist ${appId}` }).setTimestamp();
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`accept_${appId}`).setLabel("✅ Accept").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`trialist_${appId}`).setLabel("🔵 Trialist").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`deny_${appId}`).setLabel("❌ Deny").setStyle(ButtonStyle.Danger)
+      );
+      await managerChannel.send({ embeds: [mgrEmbed], components: [row] });
+    }
+    return interaction.reply({ content: `✅ **Application submitted!**\nYour ID: \`${appId}\` — save this!\nUse \`/checktryout\` to check status. Good luck! 🏆`, ephemeral: true });
+  }
+
+  if (commandName === "checktryout") {
+    const app = tryoutApplications.get(user.id);
+    if (!app) return interaction.reply({ content: "❌ No application found. Use `/tryout` to apply!", ephemeral: true });
+    const colorMap = { pending: 0xf59e0b, accepted: 0x22c55e, denied: 0xef4444, trialist: 0x3b82f6 };
+    const embed = new EmbedBuilder().setTitle(`${statusEmoji(app.status)} Tryout — ${app.ign}`).setColor(colorMap[app.status] || 0x6b7280)
+      .addFields(
+        { name: "Application ID", value: `\`${app.id}\``, inline: true }, { name: "Position", value: app.position, inline: true },
+        { name: "Skill", value: app.skill, inline: true },
+        { name: "Status", value: `${statusEmoji(app.status)} **${app.status.toUpperCase()}**`, inline: true },
+        { name: "Submitted", value: formatDate(app.submittedAt), inline: true }
+      ).setTimestamp();
+    if (app.note) embed.addFields({ name: "Manager Note", value: app.note });
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (commandName === "applications") {
+    if (!isAdmin(member)) return interaction.reply({ content: "❌ You need the **TEAM MANAGER**, **CAPTIAN**, or **OWNER** role.", ephemeral: true });
+    const filter = interaction.options.getString("filter") || "all";
+    let apps = [...tryoutApplications.values()];
+    if (filter !== "all") apps = apps.filter(a => a.status === filter);
+    if (apps.length === 0) return interaction.reply({ content: `📭 No ${filter === "all" ? "" : filter + " "}applications found.`, ephemeral: true });
+    const embed = new EmbedBuilder().setTitle(`📋 Applications (${filter.toUpperCase()}) — ${apps.length} total`).setColor(0x2563eb)
+      .setDescription(apps.slice(0, 25).map(a => `${statusEmoji(a.status)} **\`${a.id}\`** — ${a.ign} | ${a.position} | ${a.skill} | <@${a.userId}>`).join("\n"))
+      .setFooter({ text: "Use /accept <id> | /deny <id> | /trialist <id>" }).setTimestamp();
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (commandName === "accept") {
+    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+    const id = interaction.options.getString("id").toUpperCase();
+    const note = interaction.options.getString("note") || "";
+    const app = [...tryoutApplications.values()].find(a => a.id === id);
+    if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
+    app.status = "accepted"; app.note = note;
+    try {
+      const applicant = await client.users.fetch(app.userId).catch(() => null);
+      if (applicant) {
+        const dm = new EmbedBuilder().setTitle("🎉 Tryout Application — ACCEPTED").setColor(0x22c55e)
+          .setDescription(`Congratulations **${app.ign}**! You've been **accepted** into Project Azure! 🎉 A manager will be in touch shortly.`)
+          .addFields({ name: "Position", value: app.position, inline: true }, { name: "Application ID", value: `\`${id}\``, inline: true });
+        if (note) dm.addFields({ name: "Manager Note", value: note });
+        dm.setFooter({ text: "Project Azure (PJA) • GG!" }).setTimestamp();
+        await applicant.send({ embeds: [dm] });
+      }
+    } catch {}
+    return interaction.reply({ content: `✅ **${app.ign}** ACCEPTED. Applicant notified.`, ephemeral: true });
+  }
+
+  if (commandName === "deny") {
+    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+    const id = interaction.options.getString("id").toUpperCase();
+    const reason = interaction.options.getString("reason") || "No reason provided.";
+    const app = [...tryoutApplications.values()].find(a => a.id === id);
+    if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
+    app.status = "denied"; app.note = reason;
+    try {
+      const applicant = await client.users.fetch(app.userId).catch(() => null);
+      if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("❌ Tryout Application — Not Accepted").setColor(0xef4444)
+        .setDescription(`Hi **${app.ign}**, thank you for applying. Unfortunately your application was not successful at this time. Keep practising and feel free to apply again!`)
+        .addFields({ name: "Reason", value: reason }).setFooter({ text: "Project Azure (PJA) • Keep going!" }).setTimestamp()] });
+    } catch {}
+    return interaction.reply({ content: `❌ **${app.ign}** DENIED. Applicant notified.`, ephemeral: true });
+  }
+
+  if (commandName === "trialist") {
+    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+    const id = interaction.options.getString("id").toUpperCase();
+    const app = [...tryoutApplications.values()].find(a => a.id === id);
+    if (!app) return interaction.reply({ content: `❌ No application with ID \`${id}\` found.`, ephemeral: true });
+    app.status = "trialist";
+    try {
+      const applicant = await client.users.fetch(app.userId).catch(() => null);
+      if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("🔵 Tryout Application — Trialist Offer!").setColor(0x3b82f6)
+        .setDescription(`Hi **${app.ign}**! You've been offered a **Trialist** spot at Project Azure! A manager will contact you with details.`)
+        .setFooter({ text: "Project Azure (PJA) • Show us what you've got!" }).setTimestamp()] });
+    } catch {}
+    return interaction.reply({ content: `🔵 **${app.ign}** moved to TRIALIST. Applicant notified.`, ephemeral: true });
+  }
+
+  if (commandName === "roster") {
+    if (roster.length === 0) return interaction.reply({ content: "📋 The roster is empty. Use `/addplayer` to add players." });
+    const roleOrder = ["Captain", "Co-Captain", "Starter", "Backup", "Trialist", "Academy"];
+    const sorted = [...roster].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
+    const embed = new EmbedBuilder().setTitle("🔷 Project Azure — Current Roster").setColor(0x2563eb)
+      .setDescription(sorted.map(p => `**${p.ign}** — ${p.position} | ${p.role}${p.timezone ? ` | ${p.timezone}` : ""}`).join("\n"))
+      .setFooter({ text: `${roster.length} player(s) total` }).setTimestamp();
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === "addplayer") {
+    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+    const targetUser = interaction.options.getUser("user");
+    const ign = interaction.options.getString("ign");
+    const position = interaction.options.getString("position");
+    const role = interaction.options.getString("role");
+    const timezone = interaction.options.getString("timezone") || "Unknown";
+    if (roster.find(p => p.ign.toLowerCase() === ign.toLowerCase())) return interaction.reply({ 
