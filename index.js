@@ -1,4 +1,4 @@
-require("./keep-alive");
+const { setMatchHandler } = require("./keep-alive");
 const {
   Client, GatewayIntentBits, Partials,
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
@@ -9,6 +9,7 @@ require("dotenv").config();
 const TOKEN     = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID  = process.env.GUILD_ID;
+const MATCH_CHANNEL_ID = process.env.MATCH_CHANNEL_ID || GUILD_ID;
 const ADMIN_ROLES = ["Manager", "Admin", "Owner", "Coach", "TEAM MANAGER", "CAPTIAN"];
 
 const client = new Client({
@@ -67,6 +68,26 @@ function buildFriendlyButtons(id) {
     new ButtonBuilder().setCustomId("maybe_"  + id).setLabel("❓ Maybe")    .setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("cantgo_" + id).setLabel("❌ Can't Go") .setStyle(ButtonStyle.Danger),
   );
+}
+function buildMatchEmbed(data) {
+  const goingList = data.going.size  > 0 ? [...data.going].map(n  => "• " + n).join("\n") : "Nobody yet";
+  const maybeList = data.maybe.size  > 0 ? [...data.maybe].map(n  => "• " + n).join("\n") : "Nobody yet";
+  const cantList  = data.cantGo.size > 0 ? [...data.cantGo].map(n => "• " + n).join("\n") : "Nobody yet";
+  const typeIcon  = { Match: "🏆", Friendly: "⚽", Scrim: "⚔️", Practice: "🏋️" };
+  return new EmbedBuilder()
+    .setTitle((typeIcon[data.type] || "📌") + " " + data.type + " — PJA vs " + data.opponent)
+    .setColor(0x2563eb)
+    .addFields(
+      { name: "🆚 Opponent", value: data.opponent, inline: true },
+      { name: "📅 Date",     value: data.date,     inline: true },
+      { name: "🕐 Time",     value: data.time,     inline: true },
+      { name: "📝 Notes",    value: data.notes || "None" },
+      { name: "✅ Going ("    + data.going.size  + ")", value: goingList, inline: true },
+      { name: "❓ Maybe ("    + data.maybe.size  + ")", value: maybeList, inline: true },
+      { name: "❌ Can't Go (" + data.cantGo.size + ")", value: cantList,  inline: true },
+    )
+    .setFooter({ text: "Click a button to respond • Click again to remove | Project Azure (PJA)" })
+    .setTimestamp();
 }
 
 const commands = [
@@ -174,6 +195,27 @@ client.once("ready", async () => {
   console.log("Logged in as: " + client.user.tag);
   client.user.setActivity("PJA Bot | /tryout", { type: 3 });
   await registerCommands();
+
+  setMatchHandler(async (data) => {
+    try {
+      const channel = await client.channels.fetch(MATCH_CHANNEL_ID).catch(() => null);
+      if (!channel) { console.error("Could not find MATCH_CHANNEL_ID: " + MATCH_CHANNEL_ID); return; }
+      const id = makeId();
+      const matchData = {
+        opponent:  data.opponent || "TBD",
+        date:      data.date     || "TBD",
+        time:      data.time     || "TBD",
+        notes:     data.notes    || "None",
+        type:      data.type     || "Match",
+        going:     new Set(), maybe: new Set(), cantGo: new Set(), responses: new Map(),
+      };
+      friendlies.set(id, matchData);
+      await channel.send({ embeds: [buildMatchEmbed(matchData)], components: [buildFriendlyButtons(id)] });
+      console.log("Posted match RSVP for: " + matchData.opponent);
+    } catch (err) {
+      console.error("Error posting match embed:", err);
+    }
+  });
 });
 
 client.on("interactionCreate", async (interaction) => {
@@ -206,7 +248,7 @@ client.on("interactionCreate", async (interaction) => {
         date:      interaction.options.getString("date"),
         time:      interaction.options.getString("time"),
         notes:     interaction.options.getString("notes") || "None",
-        going:     new Set(), maybe: new Set(), cantGo: new Set(), responses: new Map(),
+        going: new Set(), maybe: new Set(), cantGo: new Set(), responses: new Map(),
       };
       friendlies.set(id, data);
       await interaction.editReply({ embeds: [buildFriendlyEmbed(data)], components: [buildFriendlyButtons(id)] });
@@ -223,22 +265,22 @@ client.on("interactionCreate", async (interaction) => {
       const appId = makeId();
       const app = {
         id: appId, userId: user.id, username: user.tag,
-        ign:          interaction.options.getString("ign"),
-        position:     interaction.options.getString("position"),
-        backup:       interaction.options.getString("backup"),
-        skill:        interaction.options.getString("skill"),
-        timezone:     interaction.options.getString("timezone"),
+        ign: interaction.options.getString("ign"),
+        position: interaction.options.getString("position"),
+        backup: interaction.options.getString("backup"),
+        skill: interaction.options.getString("skill"),
+        timezone: interaction.options.getString("timezone"),
         availability: interaction.options.getString("availability"),
-        priority:     interaction.options.getString("priority"),
-        clip:         interaction.options.getString("clip")  || "Not provided",
-        why:          interaction.options.getString("why")   || "Not provided",
-        bring:        interaction.options.getString("bring") || "Not provided",
+        priority: interaction.options.getString("priority"),
+        clip:  interaction.options.getString("clip")  || "Not provided",
+        why:   interaction.options.getString("why")   || "Not provided",
+        bring: interaction.options.getString("bring") || "Not provided",
         status: "pending", submittedAt: new Date().toISOString(), note: "",
       };
       applications.set(user.id, app);
       try {
         await user.send({ embeds: [pjaEmbed("✅ Tryout Application Received", 0x2563eb)
-          .setDescription("Your application for **Project Azure** has been submitted! Management will review it shortly.")
+          .setDescription("Your application for **Project Azure** has been submitted!")
           .addFields(
             { name: "App ID",       value: appId,           inline: true },
             { name: "IGN",          value: app.ign,          inline: true },
@@ -302,14 +344,14 @@ client.on("interactionCreate", async (interaction) => {
       const resultIcon  = result === "Win" ? "✅" : result === "Loss" ? "❌" : "🟡";
       const embed = pjaEmbed(resultIcon + " Match Report — PJA vs " + opponent, resultColor)
         .addFields(
-          { name: "Result",      value: result,   inline: true },
-          { name: "Score",       value: score,    inline: true },
-          { name: "Report ID",   value: reportId, inline: true },
-          { name: "⚽ Scorers",  value: scorers },
-          { name: "🎯 Assists",  value: assists,  inline: true },
-          { name: "🧤 Saves",    value: saves,    inline: true },
-          { name: "🏆 MOTM",     value: motm,     inline: true },
-          { name: "📝 Notes",    value: notes },
+          { name: "Result",     value: result,   inline: true },
+          { name: "Score",      value: score,    inline: true },
+          { name: "Report ID",  value: reportId, inline: true },
+          { name: "⚽ Scorers", value: scorers },
+          { name: "🎯 Assists", value: assists,  inline: true },
+          { name: "🧤 Saves",   value: saves,    inline: true },
+          { name: "🏆 MOTM",    value: motm,     inline: true },
+          { name: "📝 Notes",   value: notes },
         )
         .setFooter({ text: "Reported by " + user.tag + " | Project Azure (PJA)" });
       await interaction.editReply({ embeds: [embed] });
@@ -319,7 +361,7 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "leaderboard") {
       await interaction.deferReply();
       const category = interaction.options.getString("category") || "goals";
-      if (stats.size === 0) { await interaction.editReply("📊 No stats recorded yet. Stats update after match reports."); return; }
+      if (stats.size === 0) { await interaction.editReply("📊 No stats recorded yet."); return; }
       const entries = [...stats.entries()].sort((a, b) => b[1][category] - a[1][category]).slice(0, 10);
       const categoryLabel = { goals: "⚽ Goals", assists: "🎯 Assists", saves: "🧤 Saves", motms: "🏆 MOTMs", matches: "🎮 Matches" };
       const embed = pjaEmbed("🏅 Leaderboard — " + (categoryLabel[category] || category))
@@ -350,15 +392,13 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply({ ephemeral: true });
       if (!isAdmin(member)) { await interaction.editReply("❌ Managers only."); return; }
       const event = {
-        id: makeId(),
-        type:     interaction.options.getString("type"),
+        id: makeId(), type: interaction.options.getString("type"),
         opponent: interaction.options.getString("opponent"),
-        date:     interaction.options.getString("date"),
-        time:     interaction.options.getString("time"),
-        notes:    interaction.options.getString("notes") || "None",
+        date: interaction.options.getString("date"), time: interaction.options.getString("time"),
+        notes: interaction.options.getString("notes") || "None",
       };
       scheduleList.push(event);
-      await interaction.editReply("✅ Added to schedule: **" + event.opponent + "** — " + event.date + " @ " + event.time);
+      await interaction.editReply("✅ Added: **" + event.opponent + "** — " + event.date + " @ " + event.time);
       return;
     }
 
@@ -396,8 +436,7 @@ client.on("interactionCreate", async (interaction) => {
             { name: "📝 Notes",     value: notes || "None",    inline: true },
             { name: "👥 Players",   value: players || "TBD" },
             { name: "🪑 Bench",     value: bench || "None" },
-          )
-          .setFooter({ text: "Set by " + user.tag + " | Project Azure (PJA)" });
+          ).setFooter({ text: "Set by " + user.tag + " | Project Azure (PJA)" });
         await interaction.editReply({ embeds: [embed] });
         return;
       }
@@ -410,8 +449,7 @@ client.on("interactionCreate", async (interaction) => {
           { name: "📝 Notes",     value: lineup.notes,     inline: true },
           { name: "👥 Players",   value: lineup.players },
           { name: "🪑 Bench",     value: lineup.bench },
-        )
-        .setFooter({ text: "Set by " + lineup.setBy + " | Project Azure (PJA)" });
+        ).setFooter({ text: "Set by " + lineup.setBy + " | Project Azure (PJA)" });
       await interaction.editReply({ embeds: [embed] });
       return;
     }
@@ -453,7 +491,8 @@ client.on("interactionCreate", async (interaction) => {
         if (action === "cantgo") data.cantGo.add(name);
         data.responses.set(user.id, action);
       }
-      await interaction.editReply({ embeds: [buildFriendlyEmbed(data)], components: [buildFriendlyButtons(friendlyId)] });
+      const isMatch = data.type !== undefined;
+      await interaction.editReply({ embeds: [isMatch ? buildMatchEmbed(data) : buildFriendlyEmbed(data)], components: [buildFriendlyButtons(friendlyId)] });
       return;
     }
 
@@ -466,7 +505,7 @@ client.on("interactionCreate", async (interaction) => {
       const statusMap = { accept: "accepted", deny: "denied", trialist: "trialist", needsclips: "needsclips" };
       app.status = statusMap[appAction] || appAction;
       const dmMessages = {
-        accept:     "🎉 Congratulations **" + app.ign + "**! Your tryout application for **Project Azure** has been **ACCEPTED**! A manager will be in touch shortly.",
+        accept:     "🎉 Congratulations **" + app.ign + "**! Your application for **Project Azure** has been **ACCEPTED**! A manager will be in touch shortly.",
         deny:       "Hi **" + app.ign + "**, thank you for applying. Unfortunately your application was not successful. Keep practising and feel free to apply again!",
         trialist:   "Hi **" + app.ign + "**! You have been offered a **Trialist** spot at **Project Azure**! A manager will contact you with details.",
         needsclips: "Hi **" + app.ign + "**, your application looks good but we need **more clips**. Please send additional highlights to a manager!",
@@ -490,3 +529,4 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 client.login(TOKEN);
+
