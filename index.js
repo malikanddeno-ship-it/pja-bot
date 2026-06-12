@@ -328,4 +328,129 @@ client.on("interactionCreate", async (interaction) => {
     const position = interaction.options.getString("position");
     const role = interaction.options.getString("role");
     const timezone = interaction.options.getString("timezone") || "Unknown";
-    if (roster.find(p => p.ign.toLowerCase() === ign.toLowerCase())) return interaction.reply({ 
+        if (roster.find(p => p.ign.toLowerCase() === ign.toLowerCase())) return interaction.reply({ content: `⚠️ **${ign}** is already on the roster.`, ephemeral: true });
+    roster.push({ id: makeId(), userId: targetUser.id, ign, position, role, timezone });
+    const embed = new EmbedBuilder().setTitle("✅ Player Added to Roster").setColor(0x22c55e)
+      .addFields({ name: "IGN", value: ign, inline: true }, { name: "Position", value: position, inline: true }, { name: "Role", value: role, inline: true }, { name: "Timezone", value: timezone, inline: true }, { name: "Discord", value: `<@${targetUser.id}>`, inline: true })
+      .setTimestamp();
+    const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
+    if (managerChannel) await managerChannel.send({ embeds: [embed] });
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === "removeplayer") {
+    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+    const ign = interaction.options.getString("ign");
+    const idx = roster.findIndex(p => p.ign.toLowerCase() === ign.toLowerCase());
+    if (idx === -1) return interaction.reply({ content: `❌ No player called **${ign}** found.`, ephemeral: true });
+    const [removed] = roster.splice(idx, 1);
+    return interaction.reply({ content: `🗑️ **${removed.ign}** (${removed.position} | ${removed.role}) removed from roster.` });
+  }
+
+  if (commandName === "stats") {
+    const target = interaction.options.getUser("player") || user;
+    const stats = playerStats.get(target.id);
+    const rosterEntry = roster.find(p => p.userId === target.id);
+    if (!stats && !rosterEntry) return interaction.reply({ content: `❌ No stats found for **${target.username}**.`, ephemeral: true });
+    const s = stats || { wins: 0, losses: 0, draws: 0, goals: 0, assists: 0, saves: 0, mvps: 0, matches: 0 };
+    const embed = new EmbedBuilder().setTitle(`📊 Stats — ${rosterEntry?.ign || target.username}`).setColor(0x2563eb).setThumbnail(target.displayAvatarURL())
+      .addFields(
+        { name: "⚽ Goals", value: `${s.goals}`, inline: true },
+        { name: "🎯 Assists", value: `${s.assists}`, inline: true },
+        { name: "🧤 Saves", value: `${s.saves}`, inline: true },
+        { name: "🏆 MVPs", value: `${s.mvps}`, inline: true },
+        { name: "🎮 Matches", value: `${s.matches}`, inline: true },
+        { name: "✅ Wins", value: `${s.wins}`, inline: true }
+      ).setTimestamp();
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === "schedule") {
+    const upcoming = matchSchedule.filter(m => m.status === "upcoming" || m.status === "scheduled");
+    if (upcoming.length === 0) return interaction.reply({ content: "📅 No upcoming matches scheduled right now." });
+    const embed = new EmbedBuilder().setTitle("📅 Upcoming Matches — Project Azure").setColor(0x2563eb)
+      .setDescription(upcoming.slice(0, 10).map(m => `🆚 **vs ${m.opponent}** | ${m.type} | ${m.date}${m.time ? " @ " + m.time : ""}`).join("\n")).setTimestamp();
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === "results") {
+    const played = matchSchedule.filter(m => m.result);
+    if (played.length === 0) return interaction.reply({ content: "📊 No match results yet." });
+    const re = { Win: "✅", Loss: "❌", Draw: "🟡" };
+    const embed = new EmbedBuilder().setTitle("📊 Recent Results — Project Azure").setColor(0x2563eb)
+      .setDescription(played.slice(-10).reverse().map(m => `${re[m.result] || "❓"} **vs ${m.opponent}** | ${m.score} | ${m.result} | ${m.date}`).join("\n")).setTimestamp();
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === "report") {
+    if (!isAdmin(member)) return interaction.reply({ content: "❌ Manager only.", ephemeral: true });
+    const opponent = interaction.options.getString("opponent");
+    const score = interaction.options.getString("score");
+    const result = interaction.options.getString("result");
+    const scorers = interaction.options.getString("scorers") || "None";
+    const motm = interaction.options.getString("motm") || "TBD";
+    const notes = interaction.options.getString("notes") || "";
+    const matchId = makeId();
+    const matchData = { id: matchId, opponent, score, result, scorers, motm, notes, date: new Date().toISOString(), reportedBy: user.tag };
+    matchSchedule.push({ ...matchData, status: "completed" });
+    matchReports.set(matchId, matchData);
+    const resultColor = { Win: 0x22c55e, Loss: 0xef4444, Draw: 0xf59e0b }[result] || 0x6b7280;
+    const resultEmoji = { Win: "✅ WIN", Loss: "❌ LOSS", Draw: "🟡 DRAW" }[result] || result;
+    const embed = new EmbedBuilder().setTitle(`📋 Match Report — PJA vs ${opponent}`).setColor(resultColor)
+      .addFields(
+        { name: "Result", value: resultEmoji, inline: true },
+        { name: "Score", value: score, inline: true },
+        { name: "Match ID", value: `\`${matchId}\``, inline: true },
+        { name: "⚽ Goal Scorers", value: scorers },
+        { name: "🏆 Man of the Match", value: motm, inline: true },
+        { name: "📅 Date", value: formatDate(matchData.date), inline: true }
+      );
+    if (notes) embed.addFields({ name: "📝 Notes", value: notes });
+    embed.setFooter({ text: `Reported by ${user.tag}` }).setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+    const managerChannel = await client.channels.fetch(MANAGER_CHANNEL_ID).catch(() => null);
+    if (managerChannel && managerChannel.id !== interaction.channelId) await managerChannel.send({ embeds: [embed] });
+  }
+});
+
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  const { customId, member } = interaction;
+  if (!isAdmin(member)) return interaction.reply({ content: "❌ You don't have permission.", ephemeral: true });
+  const [action, appId] = customId.split("_");
+  const app = [...tryoutApplications.values()].find(a => a.id === appId);
+  if (!app) return interaction.reply({ content: `❌ Application \`${appId}\` not found.`, ephemeral: true });
+
+  if (action === "accept") {
+    app.status = "accepted";
+    try {
+      const applicant = await client.users.fetch(app.userId).catch(() => null);
+      if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("🎉 Tryout Application — ACCEPTED").setColor(0x22c55e)
+        .setDescription(`Congratulations **${app.ign}**! You've been **accepted** into Project Azure! 🎉 A manager will be in touch shortly.`).setTimestamp()] });
+    } catch {}
+    return interaction.reply({ content: `✅ **${app.ign}** accepted! Applicant notified.`, ephemeral: true });
+  }
+
+  if (action === "trialist") {
+    app.status = "trialist";
+    try {
+      const applicant = await client.users.fetch(app.userId).catch(() => null);
+      if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("🔵 Tryout Application — Trialist Offer!").setColor(0x3b82f6)
+        .setDescription(`Hi **${app.ign}**! You've been offered a **Trialist** spot at Project Azure! A manager will contact you with the details.`).setTimestamp()] });
+    } catch {}
+    return interaction.reply({ content: `🔵 **${app.ign}** moved to Trialist! Applicant notified.`, ephemeral: true });
+  }
+
+  if (action === "deny") {
+    app.status = "denied";
+    try {
+      const applicant = await client.users.fetch(app.userId).catch(() => null);
+      if (applicant) await applicant.send({ embeds: [new EmbedBuilder().setTitle("❌ Tryout Application — Not Accepted").setColor(0xef4444)
+        .setDescription(`Hi **${app.ign}**, thank you for applying. Unfortunately your application was not successful at this time. Keep practising and try again!`).setTimestamp()] });
+    } catch {}
+    return interaction.reply({ content: `❌ **${app.ign}** denied. Applicant notified.`, ephemeral: true });
+  }
+});
+
+client.login(TOKEN);
+
