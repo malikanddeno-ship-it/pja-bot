@@ -6,11 +6,14 @@ const {
 } = require("discord.js");
 require("dotenv").config();
 
+// Node 18+ has native fetch. If you're on Node 16 add: const fetch = require("node-fetch");
+
 // ── CONFIG ───────────────────────────────────────────────────
-const TOKEN     = process.env.DISCORD_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID  = process.env.GUILD_ID;
-const ADMIN_ROLES = ["Manager", "Admin", "Owner", "Coach", "TEAM MANAGER", "CAPTIAN"];
+const TOKEN        = process.env.DISCORD_TOKEN;
+const CLIENT_ID    = process.env.CLIENT_ID;
+const GUILD_ID     = process.env.GUILD_ID;
+const WEBSITE_API  = process.env.WEBSITE_API || "https://projectazure.genspark.site/tables/";
+const ADMIN_ROLES  = ["Manager", "Admin", "Owner", "Coach", "TEAM MANAGER", "CAPTIAN"];
 
 // ── CLIENT ───────────────────────────────────────────────────
 const client = new Client({
@@ -31,7 +34,18 @@ const weaknesses     = new Map();
 const contracts      = [];
 const reminders      = new Map();
 
-// ── HELPERS ──────────────────────────────────────────────────
+// ── WEBSITE API HELPER ────────────────────────────────────────
+async function apiGet(table) {
+  try {
+    const res = await fetch(WEBSITE_API + table + "?limit=500");
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data || [];
+  } catch (e) {
+    console.error("apiGet error for " + table + ":", e.message);
+    return [];
+  }
+}
 function isAdmin(member) {
   return member.roles.cache.some(r => ADMIN_ROLES.includes(r.name));
 }
@@ -247,8 +261,9 @@ const MATCH_CHANNEL_ID = process.env.MATCH_CHANNEL_ID || GUILD_ID;
 
 client.once("ready", async () => {
   console.log("Logged in as: " + client.user.tag);
-  client.user.setActivity("PJA Bot | /tryout", { type: 3 });
+  try { client.user.setActivity("PJA Bot | /tryout", { type: 3 }); } catch(e) {}
   await registerCommands();
+  console.log("Bot fully ready!");
 
   setMatchHandler(async (data) => {
     try {
@@ -317,15 +332,23 @@ client.on("interactionCreate", async (interaction) => {
     // ── /roster ────────────────────────────────────────────
     if (commandName === "roster") {
       await interaction.deferReply();
-      if (roster.length === 0) {
+      let liveRoster = [];
+      try {
+        const res = await fetch(WEBSITE_API + "roster?limit=500");
+        if (res.ok) {
+          const json = await res.json();
+          liveRoster = json.data || [];
+        }
+      } catch (e) { console.error("Could not fetch roster from website:", e.message); }
+      if (liveRoster.length === 0) {
         await interaction.editReply("📋 The roster is currently empty.");
         return;
       }
       const roleOrder = ["Captain", "Co-Captain", "Starter", "Backup", "Trialist", "Academy"];
-      const sorted = [...roster].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
+      const sorted = [...liveRoster].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
       const embed = pjaEmbed("🔷 Project Azure — Current Roster")
-        .setDescription(sorted.map(p => "**" + p.ign + "** — " + p.position + " | " + p.role + (p.timezone ? " | " + p.timezone : "")).join("\n"))
-        .setFooter({ text: roster.length + " player(s) | Project Azure (PJA)" });
+        .setDescription(sorted.map(p => "**" + (p.name || p.ign || "Unknown") + "** — " + (p.position || "?") + " | " + (p.role || "Player") + (p.timezone ? " | " + p.timezone : "")).join("\n"))
+        .setFooter({ text: liveRoster.length + " player(s) | Project Azure (PJA)" });
       await interaction.editReply({ embeds: [embed] });
       return;
     }
@@ -447,11 +470,14 @@ client.on("interactionCreate", async (interaction) => {
       const motm     = interaction.options.getString("motm")    || "TBD";
       const notes    = interaction.options.getString("notes")   || "None";
       const reportId = makeId();
-      matchReports.push({ id: reportId, opponent, score, result, scorers, assists, saves, motm, notes, date: new Date().toISOString() });
-      if (scorers !== "None") scorers.split(",").map(s => s.trim()).forEach(p => { if (p) { const s = statFor(p); s.goals++; s.matches++; } });
-      if (assists !== "None") assists.split(",").map(s => s.trim()).forEach(p => { if (p) { statFor(p).assists++; } });
-      if (saves   !== "None") saves.split(",").map(s => s.trim()).forEach(p => { if (p) { statFor(p).saves++; } });
-      if (motm !== "TBD" && motm !== "None") statFor(motm).motms++;
+      // Save to website DB
+      try {
+        await fetch(WEBSITE_API + "match_reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: reportId, opponent, score, result, scorers, assists, saves, motm, notes, date: new Date().toISOString(), source: "discord" })
+        });
+      } catch (e) { console.error("Could not save match report to website:", e.message); }
       const resultColor = result === "Win" ? 0x22c55e : result === "Loss" ? 0xef4444 : 0xf59e0b;
       const resultIcon  = result === "Win" ? "✅" : result === "Loss" ? "❌" : "🟡";
       const embed = pjaEmbed(resultIcon + " Match Report — PJA vs " + opponent, resultColor)
@@ -474,16 +500,17 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "leaderboard") {
       await interaction.deferReply();
       const category = interaction.options.getString("category") || "goals";
-      if (stats.size === 0) {
+      const liveStats = await apiGet("stats");
+      if (liveStats.length === 0) {
         await interaction.editReply("📊 No stats recorded yet. Stats are updated after match reports.");
         return;
       }
-      const entries = [...stats.entries()].sort((a, b) => b[1][category] - a[1][category]).slice(0, 10);
       const categoryLabel = { goals: "⚽ Goals", assists: "🎯 Assists", saves: "🧤 Saves", motms: "🏆 MOTMs", matches: "🎮 Matches Played" };
+      const sorted = [...liveStats].sort((a, b) => (Number(b[category]) || 0) - (Number(a[category]) || 0)).slice(0, 10);
       const embed = pjaEmbed("🏅 Leaderboard — " + (categoryLabel[category] || category))
-        .setDescription(entries.map((e, i) => {
+        .setDescription(sorted.map((e, i) => {
           const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i + 1) + ".";
-          return medal + " **" + e[0] + "** — " + e[1][category];
+          return medal + " **" + (e.player || e.name || e.ign || "Unknown") + "** — " + (e[category] || 0);
         }).join("\n"));
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -493,8 +520,13 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "schedule") {
       await interaction.deferReply();
       const typeFilter = interaction.options.getString("type") || "all";
-      let events = [...scheduleList];
-      if (typeFilter !== "all") events = events.filter(e => e.type === typeFilter);
+      const [liveMatches, liveScrims] = await Promise.all([apiGet("matches"), apiGet("scrims")]);
+      let events = [
+        ...liveMatches.map(m => ({ ...m, type: m.type || "match" })),
+        ...liveScrims.map(s => ({ ...s, type: "scrim" })),
+        ...scheduleList,
+      ];
+      if (typeFilter !== "all") events = events.filter(e => (e.type || "").toLowerCase() === typeFilter);
       if (events.length === 0) {
         await interaction.editReply("📅 No upcoming events scheduled" + (typeFilter !== "all" ? " of type: " + typeFilter : "") + ".\nManagers can add events with `/add-schedule`.");
         return;
@@ -502,7 +534,7 @@ client.on("interactionCreate", async (interaction) => {
       const typeIcon = { match: "🏆", friendly: "⚽", scrim: "⚔️", practice: "🏋️" };
       const embed = pjaEmbed("📅 PJA Schedule" + (typeFilter !== "all" ? " — " + typeFilter.toUpperCase() : ""))
         .setDescription(events.slice(0, 15).map(e =>
-          (typeIcon[e.type] || "📌") + " **" + e.opponent + "** | " + e.date + " @ " + e.time + (e.notes !== "None" ? " | " + e.notes : "")
+          (typeIcon[(e.type || "").toLowerCase()] || "📌") + " **" + (e.opponent || e.name || e.title || "TBD") + "** | " + (e.date || "TBD") + " @ " + (e.time || "TBD") + (e.notes && e.notes !== "None" ? " | " + e.notes : "")
         ).join("\n"));
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -563,7 +595,16 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
         const id = matchName || "current";
-        lineups.set(id, { formation: formation || "TBD", players: players || "TBD", bench: bench || "None", notes: notes || "None", setBy: user.tag });
+        const lineupData = { id, formation: formation || "TBD", players: players || "TBD", bench: bench || "None", notes: notes || "None", setBy: user.tag, date: new Date().toISOString() };
+        lineups.set(id, lineupData);
+        // Save to website DB
+        try {
+          await fetch(WEBSITE_API + "lineups", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, name: id, formation: formation || "TBD", positions: JSON.stringify([]), notes: notes || "None", source: "discord" })
+          });
+        } catch (e) { console.error("Could not save lineup to website:", e.message); }
         const embed = pjaEmbed("📋 Lineup Set — " + id, 0x2563eb)
           .addFields(
             { name: "🗂️ Formation", value: formation || "TBD", inline: true },
@@ -575,8 +616,14 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.editReply({ embeds: [embed] });
         return;
       }
+      // View lineup — check website first
       const id = matchName || "current";
-      const lineup = lineups.get(id);
+      let lineup = lineups.get(id);
+      if (!lineup) {
+        const liveLineups = await apiGet("lineups");
+        const found = liveLineups.find(l => l.name === id || l.id === id);
+        if (found) lineup = { formation: found.formation || "TBD", players: found.players || "TBD", bench: found.bench || "None", notes: found.notes || "None", setBy: found.setBy || "Manager" };
+      }
       if (!lineup) {
         await interaction.editReply("📋 No lineup set" + (matchName ? " for: " + matchName : "") + ". Managers can set one with `/lineup match:<name> formation:<f> players:<p>`.");
         return;
@@ -588,7 +635,7 @@ client.on("interactionCreate", async (interaction) => {
           { name: "👥 Players",   value: lineup.players },
           { name: "🪑 Bench",     value: lineup.bench },
         )
-        .setFooter({ text: "Set by " + lineup.setBy + " | Project Azure (PJA)" });
+        .setFooter({ text: "Set by " + (lineup.setBy || "Manager") + " | Project Azure (PJA)" });
       await interaction.editReply({ embeds: [embed] });
       return;
     }
@@ -598,15 +645,16 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply();
       const p1 = interaction.options.getString("player1");
       const p2 = interaction.options.getString("player2");
-      const s1 = stats.get(p1);
-      const s2 = stats.get(p2);
+      const liveStats = await apiGet("stats");
+      const s1 = liveStats.find(s => (s.player || s.name || s.ign || "").toLowerCase() === p1.toLowerCase());
+      const s2 = liveStats.find(s => (s.player || s.name || s.ign || "").toLowerCase() === p2.toLowerCase());
       let score = 0;
       let reasons = [];
       if (s1 && s2) {
-        if (s1.matches > 0 && s2.matches > 0) { score += 30; reasons.push("Both have match experience"); }
-        if (s1.motms > 0 && s2.motms > 0)     { score += 20; reasons.push("Both have MOTM awards"); }
-        if (s1.goals > 0 && s2.assists > 0)    { score += 25; reasons.push(p1 + " scores, " + p2 + " assists"); }
-        if (s2.goals > 0 && s1.assists > 0)    { score += 25; reasons.push(p2 + " scores, " + p1 + " assists"); }
+        if ((s1.matches || 0) > 0 && (s2.matches || 0) > 0) { score += 30; reasons.push("Both have match experience"); }
+        if ((s1.motms || 0) > 0  && (s2.motms || 0) > 0)   { score += 20; reasons.push("Both have MOTM awards"); }
+        if ((s1.goals || 0) > 0  && (s2.assists || 0) > 0)  { score += 25; reasons.push(p1 + " scores, " + p2 + " assists"); }
+        if ((s2.goals || 0) > 0  && (s1.assists || 0) > 0)  { score += 25; reasons.push(p2 + " scores, " + p1 + " assists"); }
         score = Math.min(score, 100);
       } else {
         score = Math.floor(Math.random() * 40) + 40;
@@ -625,21 +673,23 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "duo") {
       await interaction.deferReply();
       const player = interaction.options.getString("player");
-      const playerStats = stats.get(player);
-      if (stats.size < 2) {
+      const liveStats = await apiGet("stats");
+      if (liveStats.length < 2) {
         await interaction.editReply("📊 Not enough player data yet. Stats build up after match reports.");
         return;
       }
+      const playerStats = liveStats.find(s => (s.player || s.name || s.ign || "").toLowerCase() === player.toLowerCase());
       let bestPartner = null;
       let bestScore = -1;
-      for (const [ign, s] of stats.entries()) {
-        if (ign === player) continue;
+      for (const s of liveStats) {
+        const ign = s.player || s.name || s.ign || "Unknown";
+        if (ign.toLowerCase() === player.toLowerCase()) continue;
         let score = 0;
         if (playerStats) {
-          if (playerStats.goals > 0 && s.assists > 0) score += 30;
-          if (playerStats.assists > 0 && s.goals > 0) score += 30;
-          if (s.motms > 0) score += 20;
-          if (s.matches > 0) score += 20;
+          if ((playerStats.goals || 0) > 0 && (s.assists || 0) > 0) score += 30;
+          if ((playerStats.assists || 0) > 0 && (s.goals || 0) > 0) score += 30;
+          if ((s.motms || 0) > 0) score += 20;
+          if ((s.matches || 0) > 0) score += 20;
         } else {
           score = Math.floor(Math.random() * 60) + 20;
         }
@@ -716,15 +766,18 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "best-lineup") {
       await interaction.deferReply();
       const formation = interaction.options.getString("formation") || "4-3-3";
-      if (roster.length === 0) {
+      const [liveRoster, liveStats] = await Promise.all([apiGet("roster"), apiGet("stats")]);
+      if (liveRoster.length === 0) {
         await interaction.editReply("📋 The roster is empty. No lineup can be suggested.");
         return;
       }
-      const sorted = [...roster].sort((a, b) => {
-        const sa = stats.get(a.ign);
-        const sb = stats.get(b.ign);
-        const scoreA = sa ? sa.goals + sa.assists + sa.saves + sa.motms * 2 : 0;
-        const scoreB = sb ? sb.goals + sb.assists + sb.saves + sb.motms * 2 : 0;
+      const sorted = [...liveRoster].sort((a, b) => {
+        const name_a = a.name || a.ign || "";
+        const name_b = b.name || b.ign || "";
+        const sa = liveStats.find(s => (s.player || s.name || s.ign || "").toLowerCase() === name_a.toLowerCase());
+        const sb = liveStats.find(s => (s.player || s.name || s.ign || "").toLowerCase() === name_b.toLowerCase());
+        const scoreA = sa ? (Number(sa.goals)||0) + (Number(sa.assists)||0) + (Number(sa.saves)||0) + (Number(sa.motms)||0) * 2 : 0;
+        const scoreB = sb ? (Number(sb.goals)||0) + (Number(sb.assists)||0) + (Number(sb.saves)||0) + (Number(sb.motms)||0) * 2 : 0;
         return scoreB - scoreA;
       });
       const starters = sorted.slice(0, 11);
@@ -732,10 +785,10 @@ client.on("interactionCreate", async (interaction) => {
       const embed = pjaEmbed("📋 Suggested Best Lineup — " + formation, 0x2563eb)
         .addFields(
           { name: "🗂️ Formation",  value: formation, inline: true },
-          { name: "👥 Starting XI", value: starters.map((p, i) => (i + 1) + ". **" + p.ign + "** — " + p.position).join("\n") },
-          { name: "🪑 Bench",       value: bench.length > 0 ? bench.map(p => "• " + p.ign + " — " + p.position).join("\n") : "None" },
+          { name: "👥 Starting XI", value: starters.map((p, i) => (i + 1) + ". **" + (p.name || p.ign || "Unknown") + "** — " + (p.position || "?")).join("\n") },
+          { name: "🪑 Bench",       value: bench.length > 0 ? bench.map(p => "• " + (p.name || p.ign || "Unknown") + " — " + (p.position || "?")).join("\n") : "None" },
         )
-        .setFooter({ text: "Based on roster stats | Project Azure (PJA)" });
+        .setFooter({ text: "Based on website stats | Project Azure (PJA)" });
       await interaction.editReply({ embeds: [embed] });
       return;
     }
@@ -788,7 +841,7 @@ client.on("interactionCreate", async (interaction) => {
       const embed = pjaEmbed("🌍 Timezone Converter", 0x2563eb)
         .setDescription("**" + timeStr + " " + fromTz + "** on " + dateStr)
         .addFields(
-          { name: "🕐 Conversions",      value: conversions.join("\n") },
+          { name: "🕐 Conversions", value: conversions.join("\n") },
           { name: "⏰ Discord Timestamp", value: "<t:" + unixSeconds + ":F> — `<t:" + unixSeconds + ":F>`" },
         );
       await interaction.editReply({ embeds: [embed] });
@@ -954,6 +1007,14 @@ setInterval(async () => {
     }
   }
 }, 30000);
+
+// ── CRASH PREVENTION ─────────────────────────────────────────
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
 
 // ── LOGIN ─────────────────────────────────────────────────────
 client.login(TOKEN);
