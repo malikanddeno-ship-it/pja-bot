@@ -386,19 +386,49 @@ async function fulfilRedemption(redeem, guild) {
 
 // ── ROLE CREATION HELPER ───────────────────────────────────────
 // Creates a role with a given name + colour, then assigns to member
+// Returns { ok, role, error } so callers can handle failures gracefully
 async function createAndAssignRole(guild, member, roleName, colour) {
-  // Check if role already exists
-  let role = guild.roles.cache.find(r => r.name === roleName);
-  if (!role) {
-    role = await guild.roles.create({
-      name:        roleName,
-      color:       colour,
-      permissions: [],
-      reason:      "PJA Shop redemption — " + roleName,
-    });
+  // 1. Check the bot has Manage Roles permission
+  const botMember = guild.members.me;
+  if (!botMember || !botMember.permissions.has("ManageRoles")) {
+    return { ok: false, error: "I don't have the **Manage Roles** permission. Please give the bot that permission in Server Settings." };
   }
-  await member.roles.add(role);
-  return role;
+
+  // 2. Clamp colour — Discord rejects 0x000000 exactly
+  const safeColour = (!colour || colour === 0) ? 0x000001 : colour;
+
+  try {
+    // 3. Reuse existing role if name matches, otherwise create
+    let role = guild.roles.cache.find(r => r.name === roleName);
+    if (!role) {
+      role = await guild.roles.create({
+        name:        roleName,
+        color:       safeColour,
+        permissions: [],
+        reason:      "PJA Shop redemption — " + roleName,
+      });
+    } else {
+      // Update colour in case it changed
+      await role.setColor(safeColour, "PJA Shop colour update").catch(() => {});
+    }
+
+    // 4. Move the role to second-highest position (just below the bot's own top role)
+    //    so the colour actually shows instead of being overridden by higher roles
+    const botTopPos    = botMember.roles.highest.position;
+    const targetPos    = Math.max(botTopPos - 1, 1); // one below bot's top role, never 0
+    await role.setPosition(targetPos, { reason: "PJA colour role — must be near top to show" }).catch(() => {});
+
+    // 5. Check bot role is still higher after repositioning
+    if (botMember.roles.highest.position <= role.position) {
+      return { ok: false, error: "I can't assign the role **" + roleName + "** because it ended up higher than my own role. Please move the bot's role to the very top in Server Settings → Roles." };
+    }
+
+    await member.roles.add(role);
+    return { ok: true, role };
+  } catch (err) {
+    console.error("createAndAssignRole error:", err);
+    return { ok: false, error: "Role creation failed: " + (err.message || "Unknown error") };
+  }
 }
 
 // ── FRIENDLY / MATCH RSVP EMBED BUILDERS ─────────────────────
@@ -766,7 +796,7 @@ const commands = [
         { name:"Clip Featured (80pts)",            value:"clip_feature" },
         { name:"Custom Title (60pts)",             value:"custom_title" }
       ))
-    .addStringOption(o => o.setName("ign").setDescription("Your VRFS username").setRequired(true))
+    .addStringOption(o => o.setName("ign").setDescription("Your VRFS IGN — leave blank if you're linked. Managers only: use this to redeem for another player.").setRequired(false))
     .addStringOption(o => o.setName("note").setDescription("Extra note for your redemption (optional)").setRequired(false)),
 
   new SlashCommandBuilder().setName("suggest").setDescription("Submit a suggestion for the team or bot")
@@ -889,20 +919,24 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      // Remove any old colour role for this IGN
+      // Remove any old colour role for this IGN so the colour actually updates
       const oldRole = guild.roles.cache.find(r => r.name === roleName);
       if (oldRole) {
         await member.roles.remove(oldRole).catch(() => {});
-        // Delete old role so colour gets updated
         await oldRole.delete("Colour update via shop").catch(() => {});
       }
 
-      const newRole = await createAndAssignRole(guild, member, roleName, colour);
+      const result = await createAndAssignRole(guild, member, roleName, colour);
       pendingInputs.delete(message.author.id);
+
+      if (!result.ok) {
+        await message.reply("❌ " + result.error + "\n\nPlease ask a manager to fix this.");
+        return;
+      }
 
       await message.reply({ embeds: [
         pjaEmbed("✅ Nickname Colour Applied!", colour)
-          .setDescription("Your nickname colour role **" + newRole.name + "** has been created and assigned!\n\nYour name should now appear in your chosen colour in the server. 🎨")
+          .setDescription("Your nickname colour role **" + result.role.name + "** has been created and assigned!\n\nYour name should now appear in your chosen colour in the server. 🎨")
           .addFields({ name: "🎨 Colour", value: input, inline: true })
       ]});
       return;
@@ -940,15 +974,20 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      const newRole = await createAndAssignRole(guild, member, roleName, colour);
+      const result = await createAndAssignRole(guild, member, roleName, colour);
       pendingInputs.delete(message.author.id);
+
+      if (!result.ok) {
+        await message.reply("❌ " + result.error + "\n\nPlease ask a manager to fix this.");
+        return;
+      }
 
       await message.reply({ embeds: [
         pjaEmbed("✅ Badge Role Created!", colour)
-          .setDescription("Your badge role **" + newRole.name + "** has been created in **" + input + "** and assigned to you! 🏅\n\nIt will now appear next to your name in the server.")
+          .setDescription("Your badge role **" + result.role.name + "** has been created in **" + input + "** and assigned to you! 🏅\n\nIt will now appear next to your name in the server.")
           .addFields(
-            { name: "🏷️ Role Name", value: newRole.name, inline: true },
-            { name: "🎨 Colour",    value: input,         inline: true },
+            { name: "🏷️ Role Name", value: result.role.name, inline: true },
+            { name: "🎨 Colour",    value: input,             inline: true },
           )
       ]});
       return;
@@ -1027,24 +1066,32 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      const newRole = await createAndAssignRole(guild, member, roleName, colour);
+      const result = await createAndAssignRole(guild, member, roleName, colour);
       pendingInputs.delete(message.author.id);
+
+      if (!result.ok) {
+        await message.reply("❌ " + result.error + "\n\nPlease ask a manager to fix this.");
+        return;
+      }
 
       await message.reply({ embeds: [
         pjaEmbed("✅ Custom Title Applied!", colour)
-          .setDescription("Your custom title role **" + newRole.name + "** has been created in **" + input + "** and assigned! 🏷️\n\nIt will appear next to your name in the server.")
+          .setDescription("Your custom title role **" + result.role.name + "** has been created in **" + input + "** and assigned! 🏷️\n\nIt will appear next to your name in the server.")
           .addFields(
-            { name: "🏷️ Title",  value: newRole.name, inline: true },
-            { name: "🎨 Colour", value: input,         inline: true },
+            { name: "🏷️ Title",  value: result.role.name, inline: true },
+            { name: "🎨 Colour", value: input,             inline: true },
           )
       ]});
       return;
     }
 
   } catch (err) {
-    console.error("DM flow error:", err);
+    console.error("DM flow error (step: " + (pendingInputs.get(message.author.id)?.step || "unknown") + "):", err);
     pendingInputs.delete(message.author.id);
-    await message.reply("❌ Something went wrong processing your input. Please contact a manager.").catch(() => {});
+    await message.reply(
+      "❌ Something went wrong: **" + (err.message || "Unknown error") + "**\n" +
+      "Please contact a manager and let them know what you typed."
+    ).catch(() => {});
   }
 });
 
@@ -1862,46 +1909,97 @@ client.on("interactionCreate", async (interaction) => {
     // ── /redeem ────────────────────────────────────────────
     if (commandName === "redeem") {
       await interaction.deferReply({ ephemeral: true });
-      const itemId = interaction.options.getString("item");
-      const note   = interaction.options.getString("note") || "None";
-      const item   = SHOP_ITEMS.find(i => i.id === itemId);
+      const itemId      = interaction.options.getString("item");
+      const note        = interaction.options.getString("note") || "None";
+      const item        = SHOP_ITEMS.find(i => i.id === itemId);
       if (!item) { await interaction.editReply("❌ Item not found. Use `/shop` to see items."); return; }
 
-      // Use linked IGN if the player provided none or use their provided IGN
       const providedIgn = interaction.options.getString("ign");
       const linkedIgn   = getIgnForUser(user.id);
-      const ign         = providedIgn || linkedIgn;
+      const managerMode = isAdmin(member) && providedIgn && providedIgn.toLowerCase() !== (linkedIgn || "").toLowerCase();
 
-      if (!ign) {
+      // ── IGN resolution ────────────────────────────────────
+      // Managers can provide any IGN (redemption for another player)
+      // Regular players: if they provide an IGN it must match their own linked IGN
+      let ign;
+      if (providedIgn) {
+        if (!managerMode && linkedIgn && providedIgn.toLowerCase() !== linkedIgn.toLowerCase()) {
+          // Player tried to redeem using someone else's IGN — block it
+          await interaction.editReply(
+            "⚠️ **Hold on!**\n" +
+            "You tried to redeem using **"+providedIgn+"** but your account is linked to **"+linkedIgn+"**.\n\n" +
+            "🚨 **Warning:** Using `/redeem` with another player's IGN to spend their points or send them DMs is not allowed and **will result in a strike** from a manager.\n\n" +
+            "If you meant to redeem for yourself, just leave the `ign` field blank."
+          );
+          return;
+        }
+        if (!managerMode && !linkedIgn) {
+          // Not linked but provided an IGN — allow it but warn them to link
+          ign = providedIgn;
+        } else {
+          ign = providedIgn;
+        }
+      } else {
+        // No IGN provided — must be linked
+        if (!linkedIgn) {
+          await interaction.editReply(
+            "❌ You haven't linked your VRFS IGN yet!\n" +
+            "Use `/link ign:YourIGN` to link your account, then you won't need to type your IGN every time."
+          );
+          return;
+        }
+        ign = linkedIgn;
+      }
+
+      // ── Points check ──────────────────────────────────────
+      // For manager gifting another player: deduct from the manager's own points
+      // unless the target player has enough themselves
+      const spendingIgn = managerMode ? ign : ign; // always the target's IGN for points
+      const currentPts  = getPoints(spendingIgn);
+      if (currentPts < item.cost) {
         await interaction.editReply(
-          "❌ You haven't linked your VRFS IGN yet!\n" +
-          "Use `/link ign:YourIGN` first, or provide your IGN with the `/redeem ign:` option."
+          "❌ Not enough points!\n**"+ign+"** has **"+currentPts+" pts** but **"+item.name+"** costs **"+item.cost+" pts**."
         );
         return;
       }
 
-      const currentPts = getPoints(ign);
-      if (currentPts < item.cost) {
-        await interaction.editReply("❌ Not enough points!\n**"+ign+"** has **"+currentPts+" pts** but **"+item.name+"** costs **"+item.cost+" pts**.");
-        return;
-      }
       const redeemId   = makeId();
-      const redeemData = { id:redeemId, userId:user.id, username:user.tag, ign, item:item.name, itemId:item.id, cost:item.cost, note, status:"pending", createdAt:new Date().toISOString() };
+      const redeemData = {
+        id: redeemId, userId: user.id, username: user.tag,
+        ign, item: item.name, itemId: item.id, cost: item.cost,
+        note, status: "pending", giftedBy: managerMode ? user.tag : null,
+        createdAt: new Date().toISOString()
+      };
       shopRedemptions.set(redeemId, redeemData);
-      const embed = pjaEmbed("🛍️ Redemption Request — "+item.name, 0x2563eb)
-        .setDescription("A player wants to redeem **"+item.name+"**.")
-        .addFields(
-          { name:"👤 Player", value:"<@"+user.id+"> ("+ign+")", inline:true },{ name:"🛒 Item", value:item.name, inline:true },{ name:"🪙 Cost", value:item.cost+" pts", inline:true },
-          { name:"💰 Balance", value:currentPts+" pts (before deduction)", inline:true },{ name:"🆔 ID", value:redeemId, inline:true },
-          { name:"📝 Note", value:note, inline:false },{ name:"ℹ️ What happens", value:item.desc, inline:false },
+
+      // ── Build confirmation embed ──────────────────────────
+      const isGift        = managerMode;
+      const warningField  = !linkedIgn && !isGift
+        ? [{ name: "⚠️ Account not linked", value: "You're not linked yet. Use `/link ign:"+ign+"` to link your account so you don't need to type your IGN next time.", inline: false }]
+        : [];
+
+      const confirmEmbed = pjaEmbed("🛍️ Confirm Redemption — "+item.name, isGift ? 0xf59e0b : 0x2563eb)
+        .setDescription(
+          isGift
+            ? "🎁 You're gifting **"+item.name+"** to **"+ign+"** as a manager. Their points will be deducted."
+            : "You're about to redeem **"+item.name+"**. Just confirming this is what you want!"
         )
-        .setFooter({ text:"Points deducted only on approval | Project Azure (PJA)" });
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("redeem_approve_"+redeemId).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("redeem_deny_"+redeemId).setLabel("❌ Deny").setStyle(ButtonStyle.Danger),
+        .addFields(
+          { name: "🛒 Item",          value: item.name,                       inline: true },
+          { name: "🪙 Cost",          value: item.cost+" pts",                inline: true },
+          { name: "💰 Balance after", value: (currentPts - item.cost)+" pts", inline: true },
+          { name: "👤 Redeeming for", value: ign,                             inline: true },
+          { name: "📝 Note",          value: note,                            inline: false },
+          { name: "ℹ️ What you get",  value: item.desc,                       inline: false },
+          ...warningField,
+        )
+        .setFooter({ text: "This will immediately deduct points | Project Azure (PJA)" });
+
+      const confirmRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("redeem_confirm_"+redeemId).setLabel(isGift ? "✅ Gift it!" : "✅ Yes, redeem it!").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("redeem_cancel_"+redeemId) .setLabel("❌ Cancel").setStyle(ButtonStyle.Danger),
       );
-      await interaction.channel.send({ embeds: [embed], components: [row] });
-      await interaction.editReply("✅ Redemption submitted!\n**Item:** "+item.name+"\n**Cost:** "+item.cost+" pts\n**ID:** "+redeemId+"\nManagers will review your request.");
+      await interaction.editReply({ embeds:[confirmEmbed], components:[confirmRow] });
       return;
     }
 
@@ -2224,70 +2322,59 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    // ── Redeem approval buttons ────────────────────────────
-    if (parts[0]==="redeem" && (parts[1]==="approve" || parts[1]==="deny")) {
+    // ── Redeem confirm / cancel buttons (player self-confirms) ──
+    if (parts[0]==="redeem" && (parts[1]==="confirm" || parts[1]==="cancel")) {
       await interaction.deferUpdate();
-      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ Only Managers can approve/deny redemptions.", ephemeral:true }); return; }
-      const action   = parts[1];
       const redeemId = parts[2];
       const redeem   = shopRedemptions.get(redeemId);
-      if (!redeem) { await interaction.followUp({ content:"❌ Redemption **"+redeemId+"** not found.", ephemeral:true }); return; }
-      if (redeem.status !== "pending") { await interaction.followUp({ content:"⚠️ Already **"+redeem.status+"**.", ephemeral:true }); return; }
+      if (!redeem) { await interaction.followUp({ content:"❌ Redemption not found — it may have expired.", ephemeral:true }); return; }
 
-      // Disable the buttons on the original message right away
-      const disabledRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("redeem_approve_"+redeemId).setLabel("✅ Approve").setStyle(ButtonStyle.Success).setDisabled(true),
-        new ButtonBuilder().setCustomId("redeem_deny_"+redeemId)   .setLabel("❌ Deny")   .setStyle(ButtonStyle.Danger) .setDisabled(true),
-      );
-      await interaction.editReply({ components:[disabledRow] });
-
-      if (action === "deny") {
-        redeem.status = "denied";
-        try {
-          const requester = await client.users.fetch(redeem.userId).catch(()=>null);
-          if (requester) await requester.send({ embeds:[pjaEmbed("🛍️ Redemption Denied — "+redeem.item, 0xef4444).setDescription("❌ Your redemption for **"+redeem.item+"** was **denied**. Your points have not been deducted.").addFields({ name:"🪙 Balance unchanged", value:getPoints(redeem.ign)+" pts", inline:true })] }).catch(()=>{});
-        } catch(e) {}
-        await interaction.followUp({ content:"❌ Redemption **"+redeemId+"** denied. Points not deducted.", ephemeral:true });
+      // Only the player who made the request can confirm/cancel
+      if (interaction.user.id !== redeem.userId) {
+        await interaction.followUp({ content:"❌ This isn't your redemption!", ephemeral:true });
+        return;
+      }
+      if (redeem.status !== "pending") {
+        await interaction.followUp({ content:"⚠️ This redemption was already **"+redeem.status+"**.", ephemeral:true });
         return;
       }
 
-      // ── APPROVE — run auto-fulfil ──────────────────────
+      // Disable buttons immediately
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("redeem_confirm_"+redeemId).setLabel("✅ Yes, redeem it!").setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId("redeem_cancel_"+redeemId) .setLabel("❌ Cancel")         .setStyle(ButtonStyle.Danger) .setDisabled(true),
+      );
+      await interaction.editReply({ components:[disabledRow] });
+
+      // ── CANCEL ─────────────────────────────────────────
+      if (parts[1] === "cancel") {
+        redeem.status = "cancelled";
+        await interaction.followUp({ content:"❌ Redemption cancelled. Your points were **not** deducted.", ephemeral:true });
+        return;
+      }
+
+      // ── CONFIRM — deduct points and auto-fulfil ─────────
       redeem.status     = "approved";
-      redeem.reviewedBy = user.tag;
+      redeem.reviewedBy = "self-confirmed";
       const newBal      = addPoints(redeem.ign, -redeem.cost);
+      const guild       = interaction.guild;
+      const result      = await fulfilRedemption(redeem, guild);
 
-      const guild  = interaction.guild;
-      const result = await fulfilRedemption(redeem, guild);
-
-      // Notify the player their redemption was approved
-      try {
-        const requester = await client.users.fetch(redeem.userId).catch(()=>null);
-        if (requester) {
-          await requester.send({ embeds:[
-            pjaEmbed("🛍️ Redemption Approved — "+redeem.item, 0x22c55e)
-              .setDescription(
-                "🎉 Your redemption for **"+redeem.item+"** has been **approved**!\n" +
-                (result.ok
-                  ? (["nickname_color","profile_badge","clip_feature","custom_title"].includes(redeem.itemId)
-                    ? "Check your DMs — the bot will guide you through the next steps! 💬"
-                    : "The reward has been processed automatically! ✅")
-                  : "A manager will fulfil your reward shortly.")
-              )
-              .addFields(
-                { name:"🛒 Item",       value:redeem.item,    inline:true },
-                { name:"🪙 Points",     value:"-"+redeem.cost+" pts", inline:true },
-                { name:"💰 New Balance", value:newBal+" pts",  inline:true },
-              )
-          ]}).catch(()=>{});
-        }
-      } catch(e) {}
-
-      await interaction.followUp({
-        content:"✅ Redemption **"+redeemId+"** approved!\n" +
-          "💰 **"+redeem.cost+" pts** deducted from **"+redeem.ign+"** (new balance: **"+newBal+" pts**)\n" +
-          (result.ok ? result.msg : "⚠️ "+result.msg),
-        ephemeral: true,
-      });
+      const doneEmbed = pjaEmbed("✅ Redemption Confirmed — "+redeem.item, 0x22c55e)
+        .setDescription(
+          "🎉 Your **"+redeem.item+"** has been redeemed!\n" +
+          (result.ok
+            ? (["nickname_color","profile_badge","clip_feature","custom_title"].includes(redeem.itemId)
+                ? "📬 Check your DMs — the bot will walk you through the next step!"
+                : "✅ Your reward has been processed automatically!")
+            : "⚠️ "+result.msg)
+        )
+        .addFields(
+          { name:"🛒 Item",          value:redeem.item,          inline:true },
+          { name:"🪙 Points spent",  value:"-"+redeem.cost+" pts", inline:true },
+          { name:"💰 New balance",   value:newBal+" pts",          inline:true },
+        );
+      await interaction.editReply({ embeds:[doneEmbed], components:[disabledRow] });
       return;
     }
 
