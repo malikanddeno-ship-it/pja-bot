@@ -52,6 +52,42 @@ const bugReports      = new Map();
 // key = userId, value = { step, redeemId, guildId, roleName? }
 const pendingInputs = new Map();
 
+// ── ACCOUNT LINKS ─────────────────────────────────────────────
+// Maps Discord user ID → VRFS IGN (lowercase key)
+// e.g. linkedAccounts.get('123456789') === 'PlayerIGN'
+const linkedAccounts = new Map();  // discordId → ign
+const ignToDiscordId = new Map();  // ign.toLowerCase() → discordId
+
+function linkAccount(discordId, ign) {
+  // Remove any old IGN link for this Discord ID
+  const oldIgn = linkedAccounts.get(discordId);
+  if (oldIgn) ignToDiscordId.delete(oldIgn.toLowerCase());
+  linkedAccounts.set(discordId, ign);
+  ignToDiscordId.set(ign.toLowerCase(), discordId);
+}
+
+function getIgnForUser(discordId) {
+  return linkedAccounts.get(discordId) || null;
+}
+
+function getDiscordIdForIgn(ign) {
+  return ignToDiscordId.get(ign.toLowerCase()) || null;
+}
+
+// ── MEMBER LOOKUP HELPER ───────────────────────────────────────
+// Tries linked account first, then falls back to username search
+async function getMemberByIgn(guild, ign) {
+  // 1. Check if IGN is linked to a Discord ID
+  const linkedId = getDiscordIdForIgn(ign);
+  if (linkedId) {
+    const m = await guild.members.fetch(linkedId).catch(() => null);
+    if (m) return m;
+  }
+  // 2. Fall back to username search (less reliable)
+  const results = await guild.members.fetch({ query: ign, limit: 1 }).catch(() => null);
+  return results ? results.first() || null : null;
+}
+
 // ── SHOP ITEMS ────────────────────────────────────────────────
 // Shop item prices are mutable at runtime via /shop-price
 const SHOP_ITEMS = [
@@ -163,8 +199,8 @@ function addPoints(ign, amount) {
 // Called after a manager approves a redemption.
 // Handles instant rewards and kicks off DM flows for custom ones.
 async function fulfilRedemption(redeem, guild) {
-  const player = await guild.members.fetch({ query: redeem.ign, limit: 1 })
-    .then(c => c.first()).catch(() => null);
+  // Use linked Discord ID first, then fall back to username search
+  const player = await getMemberByIgn(guild, redeem.ign);
 
   switch (redeem.itemId) {
 
@@ -745,6 +781,19 @@ const commands = [
     .addStringOption(o => o.setName("notes").setDescription("Extra notes (optional)").setRequired(false)),
 
   new SlashCommandBuilder().setName("server-stats").setDescription("Show server and team statistics"),
+
+  // /link
+  new SlashCommandBuilder().setName("link").setDescription("Link your Discord account to your VRFS IGN")
+    .addStringOption(o => o.setName("ign").setDescription("Your VRFS in-game username").setRequired(true)),
+
+  // /link-player
+  new SlashCommandBuilder().setName("link-player").setDescription("Link a Discord user to a VRFS IGN [Manager only]")
+    .addUserOption(o   => o.setName("user").setDescription("Discord user to link").setRequired(true))
+    .addStringOption(o => o.setName("ign").setDescription("Their VRFS in-game username").setRequired(true)),
+
+  // /linked
+  new SlashCommandBuilder().setName("linked").setDescription("Check which IGN a Discord user is linked to")
+    .addUserOption(o => o.setName("user").setDescription("Discord user to check (leave blank for yourself)").setRequired(false)),
 
   // /shop-price
   new SlashCommandBuilder().setName("shop-price").setDescription("Change the price of a shop item [Manager only]")
@@ -1692,7 +1741,7 @@ client.on("interactionCreate", async (interaction) => {
         );
       await interaction.editReply({ embeds: [embed] });
       try {
-        const guildMember = await interaction.guild.members.fetch({ query:warnPlayer, limit:1 }).then(c=>c.first()).catch(()=>null);
+        const guildMember = await getMemberByIgn(interaction.guild, warnPlayer);
         if (guildMember) await guildMember.user.send({ embeds: [pjaEmbed("⚠️ Warning — Project Azure", sevColor).setDescription("You have received a **"+severity+"** warning.\n📝 **Reason:** "+reason).addFields({ name:"🥊 Strikes", value:strikes+" strike(s)", inline:true })] }).catch(()=>{});
       } catch(e) {}
       return;
@@ -1776,7 +1825,8 @@ client.on("interactionCreate", async (interaction) => {
     // ── /points ────────────────────────────────────────────
     if (commandName === "points") {
       await interaction.deferReply();
-      const targetIgn = interaction.options.getString("player") || user.username;
+      // Use linked IGN for self-check, or the provided player name
+      const targetIgn = interaction.options.getString("player") || getIgnForUser(user.id) || user.username;
       const pts       = getPoints(targetIgn);
       await interaction.editReply({ embeds: [pjaEmbed("🪙 PJA Points — "+targetIgn)
         .setDescription("**"+targetIgn+"** has **"+pts+" PJA Points** 🪙")
@@ -1803,7 +1853,7 @@ client.on("interactionCreate", async (interaction) => {
           { name:"📝 Reason", value:reason },
         )] });
       try {
-        const guildMember = await interaction.guild.members.fetch({ query:giveIgn, limit:1 }).then(c=>c.first()).catch(()=>null);
+        const guildMember = await getMemberByIgn(interaction.guild, giveIgn);
         if (guildMember) await guildMember.user.send({ embeds: [pjaEmbed("🪙 Points Update", amount>=0?0x22c55e:0xf59e0b).setDescription("**"+Math.abs(amount)+" pts** have been "+action+" your balance!\n📝 **Reason:** "+reason).addFields({ name:"🪙 New Balance", value:newBalance+" pts", inline:true })] }).catch(()=>{});
       } catch(e) {}
       return;
@@ -1812,11 +1862,24 @@ client.on("interactionCreate", async (interaction) => {
     // ── /redeem ────────────────────────────────────────────
     if (commandName === "redeem") {
       await interaction.deferReply({ ephemeral: true });
-      const itemId       = interaction.options.getString("item");
-      const ign          = interaction.options.getString("ign");
-      const note         = interaction.options.getString("note") || "None";
-      const item         = SHOP_ITEMS.find(i => i.id === itemId);
+      const itemId = interaction.options.getString("item");
+      const note   = interaction.options.getString("note") || "None";
+      const item   = SHOP_ITEMS.find(i => i.id === itemId);
       if (!item) { await interaction.editReply("❌ Item not found. Use `/shop` to see items."); return; }
+
+      // Use linked IGN if the player provided none or use their provided IGN
+      const providedIgn = interaction.options.getString("ign");
+      const linkedIgn   = getIgnForUser(user.id);
+      const ign         = providedIgn || linkedIgn;
+
+      if (!ign) {
+        await interaction.editReply(
+          "❌ You haven't linked your VRFS IGN yet!\n" +
+          "Use `/link ign:YourIGN` first, or provide your IGN with the `/redeem ign:` option."
+        );
+        return;
+      }
+
       const currentPts = getPoints(ign);
       if (currentPts < item.cost) {
         await interaction.editReply("❌ Not enough points!\n**"+ign+"** has **"+currentPts+" pts** but **"+item.name+"** costs **"+item.cost+" pts**.");
@@ -1907,6 +1970,96 @@ client.on("interactionCreate", async (interaction) => {
           { name:"🏆 Match Record", value:"✅ **"+winCount+"W** / 🟡 **"+drawCount+"D** / ❌ **"+lossCount+"L**", inline:false },
           { name:"🗳️ Active Votes", value:[...teamVotes.values()].length+" vote(s)", inline:true },{ name:"⚠️ Players w/ Warns", value:[...playerWarnings.entries()].filter(([,w])=>w.length>0).length+" player(s)", inline:true },
         )] });
+      return;
+    }
+
+    // ── /link ───────────────────────────────────────────────
+    if (commandName === "link") {
+      await interaction.deferReply({ ephemeral: true });
+      const ign = interaction.options.getString("ign").trim();
+
+      // Check if another user already owns this IGN
+      const existingId = getDiscordIdForIgn(ign);
+      if (existingId && existingId !== user.id) {
+        await interaction.editReply("❌ The IGN **" + ign + "** is already linked to another Discord account. Contact a manager if this is wrong.");
+        return;
+      }
+
+      linkAccount(user.id, ign);
+
+      const embed = pjaEmbed("✅ Account Linked!", 0x22c55e)
+        .setDescription("Your Discord account is now linked to VRFS IGN **" + ign + "**!")
+        .addFields(
+          { name: "👤 Discord", value: user.tag,  inline: true },
+          { name: "🎮 IGN",    value: ign,        inline: true },
+        )
+        .setFooter({ text: "Use /link again to update your IGN | Project Azure (PJA)" });
+
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    // ── /link-player ───────────────────────────────────────
+    if (commandName === "link-player") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) {
+        await interaction.editReply("❌ This command is for Managers only.");
+        return;
+      }
+
+      const target = interaction.options.getUser("user");
+      const ign    = interaction.options.getString("ign").trim();
+
+      // Check if IGN is already linked to someone else
+      const existingId = getDiscordIdForIgn(ign);
+      if (existingId && existingId !== target.id) {
+        const existingUser = await client.users.fetch(existingId).catch(() => null);
+        await interaction.editReply("⚠️ **" + ign + "** is currently linked to **" + (existingUser ? existingUser.tag : existingId) + "**. Overwriting...");
+      }
+
+      linkAccount(target.id, ign);
+
+      const embed = pjaEmbed("🔗 Account Linked by Manager", 0x2563eb)
+        .addFields(
+          { name: "👤 Discord", value: target.tag, inline: true },
+          { name: "🎮 IGN",    value: ign,         inline: true },
+          { name: "🎙️ By",    value: user.tag,    inline: true },
+        )
+        .setDescription("<@" + target.id + "> has been linked to VRFS IGN **" + ign + "**.");
+
+      // DM the linked player
+      try {
+        await target.send({ embeds: [
+          pjaEmbed("🔗 Your Account Has Been Linked", 0x2563eb)
+            .setDescription("A manager has linked your Discord to VRFS IGN **" + ign + "**\n\nIf this is wrong, use `/link ign:YourActualIGN` to correct it.")
+        ]}).catch(() => {});
+      } catch(e) {}
+
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    // ── /linked ────────────────────────────────────────────
+    if (commandName === "linked") {
+      await interaction.deferReply({ ephemeral: true });
+      const target    = interaction.options.getUser("user") || user;
+      const linkedIgn = getIgnForUser(target.id);
+
+      if (!linkedIgn) {
+        await interaction.editReply(
+          target.id === user.id
+            ? "❌ You haven't linked your IGN yet. Use `/link ign:YourIGN` to link your account."
+            : "❌ **" + target.tag + "** hasn't linked their IGN yet."
+        );
+        return;
+      }
+
+      const embed = pjaEmbed("🔗 Linked Account", 0x2563eb)
+        .addFields(
+          { name: "👤 Discord", value: target.tag, inline: true },
+          { name: "🎮 IGN",    value: linkedIgn,   inline: true },
+        );
+      await interaction.editReply({ embeds: [embed] });
       return;
     }
 
