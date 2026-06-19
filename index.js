@@ -2340,35 +2340,28 @@ client.on("interactionCreate", async (interaction) => {
 
     // ── /self-report ───────────────────────────────────────
     if (commandName === "self-report") {
+      // Must call showModal within 3 seconds — no async work before this
       const reportId = interaction.options.getString("report-id").toUpperCase();
-      let report   = matchReportsFull.get(reportId);
-      if (!report) {
-        // Try API fallback
-        const apiReports = await apiGet("match_reports").catch(()=>[]);
-        const apiReport  = apiReports.find(r => (r.id||"").toUpperCase() === reportId);
-        if (apiReport) {
-          report = { ...apiReport, players: [], motmLocked: false, finalized: false };
-          matchReportsFull.set(reportId, report);
-        }
-      }
-      if (!report) {
-        await interaction.reply({ content: "❌ Match report **" + reportId + "** not found. Ask your manager for the correct Report ID shown in the `/match-report` embed.", ephemeral: true });
-        return;
-      }
+
+      // Quick in-memory check only — no API calls
       const subKey = reportId + "_" + user.id;
       if (selfReports.has(subKey)) {
         const ex = selfReports.get(subKey);
         if (ex.status !== "denied") {
-          await interaction.reply({ content: "⚠️ You already submitted for this match. **Status:** " + ex.status + "\nAsk a manager to reopen it if needed.", ephemeral: true });
+          await interaction.reply({ content: "⚠️ You already submitted for this match.\n**Status:** " + ex.status + "\nAsk a manager to reopen it if needed.", ephemeral: true });
           return;
         }
       }
-      // Find this player's assigned position
-      const assigned = report.players ? report.players.find(p => p.userId === user.id || (p.ign && p.ign.toLowerCase() === (getIgnForUser(user.id)||"").toLowerCase())) : null;
+
+      // Determine position from in-memory report (fast) — default Utility
+      const report = matchReportsFull.get(reportId);
+      const assigned = report && report.players
+        ? report.players.find(p => p.userId === user.id || (p.ign && p.ign.toLowerCase() === (getIgnForUser(user.id)||"").toLowerCase()))
+        : null;
       const pos = assigned ? assigned.position : "Utility";
       const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos] || "util";
 
-      const safeOpponent = (report.opponent||"Match").substring(0,20);
+      const safeOpponent = report ? (report.opponent||"Match").substring(0,20) : "Match";
       const modal = new ModalBuilder()
         .setCustomId("sr_modal_" + reportId + "_" + pos)
         .setTitle(("Self-Report: " + pos + " vs " + safeOpponent).substring(0,45));
@@ -3431,17 +3424,17 @@ client.on("interactionCreate", async (interaction) => {
       const idParts  = customId.replace("sr_modal_","").split("_");
       const reportId = idParts[0];
       const pos      = idParts[1] || "Utility";
-      // Fetch or create a stub report so self-reports always work
+
+      // Lookup report — API fallback is fine here, no time limit in modal submit
       let report = matchReportsFull.get(reportId);
       if (!report) {
-        // Try to find in API
         const apiReports = await apiGet("match_reports").catch(()=>[]);
         const apiReport  = apiReports.find(r => (r.id||"").toUpperCase() === reportId);
         if (apiReport) {
           report = { ...apiReport, players: [], motmLocked: false, finalized: false };
           matchReportsFull.set(reportId, report);
         } else {
-          // Create a stub so submission still works — manager can verify later
+          // Stub — submission still saves even if report not found
           report = { id: reportId, opponent: "Unknown", score: "?", result: "?", date: new Date().toDateString(), players: [], motmLocked: false, finalized: false };
           matchReportsFull.set(reportId, report);
         }
@@ -3515,30 +3508,35 @@ client.on("interactionCreate", async (interaction) => {
 
       selfReports.set(subKey, sub);
 
-      await interaction.editReply({ embeds: [pjaEmbed("✅ Self-Report Submitted!", 0x22c55e)
-        .setDescription("Your stats for **PJA vs "+report.opponent+"** have been submitted!\n\nA manager will review and approve your submission. Stats don't count until approved.")
-        .addFields(
-          { name:"📍 Position",   value:pos,                          inline:true },
-          { name:"⚽ Goals",      value:sub.goals||"N/A",             inline:true },
-          { name:"🎯 Assists",    value:sub.assists||"N/A",           inline:true },
-          { name:"🧤 Saves",      value:sub.saves||"N/A",             inline:true },
-          { name:"📝 Notes",      value:(sub.notes||"None").substring(0,100), inline:false },
-        ).setFooter({ text:"Manager review pending | Project Azure (PJA)" })] });
+      // Safe field values — Discord rejects empty/undefined embed field values
+      const safeVal = (v) => (v && String(v).trim()) ? String(v).trim() : "—";
 
-      // Notify channel
+      await interaction.editReply({ embeds: [pjaEmbed("✅ Self-Report Submitted!", 0x22c55e)
+        .setDescription("Your stats for **PJA vs " + report.opponent + "** have been submitted!\n\nA manager will review and approve your submission. Stats don't count until approved.")
+        .addFields(
+          { name:"📍 Position", value: safeVal(pos),          inline: true },
+          { name:"⚽ Goals",    value: safeVal(sub.goals),    inline: true },
+          { name:"🎯 Assists",  value: safeVal(sub.assists),  inline: true },
+          { name:"🧤 Saves",    value: safeVal(sub.saves),    inline: true },
+          { name:"📝 Notes",    value: safeVal(sub.notes).substring(0, 100), inline: false },
+        ).setFooter({ text: "Manager review pending | Project Azure (PJA)" })] });
+
+      // Notify channel (safe — ignore if no channel access)
       try {
-        await interaction.channel.send({ embeds:[pjaEmbed("📊 New Self-Report", 0x2563eb)
-          .setDescription("**"+myIgn+"** submitted their stats for **"+reportId+"**.\nPosition: "+pos+" | Use `/review-submissions` to review.")], });
+        if (interaction.channel) {
+          await interaction.channel.send({ embeds: [pjaEmbed("📊 New Self-Report", 0x2563eb)
+            .setDescription("**" + myIgn + "** submitted stats for report **" + reportId + "**.\nPosition: " + pos + " | Use `/review-submissions report-id:" + reportId + "` to review.")] });
+        }
       } catch(e) {}
       return;
     }
 
   } catch (err) {
-    console.error("Modal submit error:", err);
+    console.error("Modal submit error [" + (interaction.customId||"?") + "]:", err.message, err.stack);
     try {
-      const msg = "❌ Something went wrong processing your form. Please try again.";
+      const msg = "❌ Something went wrong: **" + (err.message||"Unknown error") + "**";
       if (interaction.replied||interaction.deferred) await interaction.editReply(msg).catch(()=>{});
-      else await interaction.reply({ content:msg, ephemeral:true }).catch(()=>{});
+      else await interaction.reply({ content: msg, ephemeral: true }).catch(()=>{});
     } catch(e) {}
   }
 });
