@@ -2325,7 +2325,7 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "getting-started" || commandName === "setup-profile") {
       const modal = new ModalBuilder()
         .setCustomId("gs_modal_" + user.id)
-        .setTitle("PJA — Player Setup Profile");
+        .setTitle("PJA — Team Profile Setup");
       const rows = [
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_ign").setLabel("VRFS Username").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("Your in-game name")),
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_position").setLabel("Main Position / Backup Position").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. ST / LW")),
@@ -2341,9 +2341,18 @@ client.on("interactionCreate", async (interaction) => {
     // ── /self-report ───────────────────────────────────────
     if (commandName === "self-report") {
       const reportId = interaction.options.getString("report-id").toUpperCase();
-      const report   = matchReportsFull.get(reportId);
+      let report   = matchReportsFull.get(reportId);
       if (!report) {
-        await interaction.reply({ content: "❌ Match report **" + reportId + "** not found. Ask your manager for the correct ID.", ephemeral: true });
+        // Try API fallback
+        const apiReports = await apiGet("match_reports").catch(()=>[]);
+        const apiReport  = apiReports.find(r => (r.id||"").toUpperCase() === reportId);
+        if (apiReport) {
+          report = { ...apiReport, players: [], motmLocked: false, finalized: false };
+          matchReportsFull.set(reportId, report);
+        }
+      }
+      if (!report) {
+        await interaction.reply({ content: "❌ Match report **" + reportId + "** not found. Ask your manager for the correct Report ID shown in the `/match-report` embed.", ephemeral: true });
         return;
       }
       const subKey = reportId + "_" + user.id;
@@ -2359,9 +2368,10 @@ client.on("interactionCreate", async (interaction) => {
       const pos = assigned ? assigned.position : "Utility";
       const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos] || "util";
 
+      const safeOpponent = (report.opponent||"Match").substring(0,20);
       const modal = new ModalBuilder()
         .setCustomId("sr_modal_" + reportId + "_" + pos)
-        .setTitle("Self-Report — " + pos + " (" + report.opponent + ")");
+        .setTitle(("Self-Report: " + pos + " vs " + safeOpponent).substring(0,45));
 
       const gkFields = [
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_saves").setLabel("Saves | Big Saves").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 4 | 2")),
@@ -3034,7 +3044,13 @@ client.on("interactionCreate", async (interaction) => {
     // ── Activity check button ──────────────────────────────
     if (parts[0]==="activity" && parts[1]==="confirm") {
       await interaction.deferUpdate();
-      const checkId = parts[2]; const check = activityChecks.get(checkId); if (!check) return;
+      const checkId = parts[2];
+      let check = activityChecks.get(checkId);
+      // If bot restarted and check is gone, recreate a minimal one so the button still works
+      if (!check) {
+        check = { id: checkId, message: "Activity Check", deadline: "Unknown", active: new Set(), postedBy: "Unknown" };
+        activityChecks.set(checkId, check);
+      }
       const name = member ? member.displayName : user.username;
       check.active.add(name);
       await interaction.editReply({ embeds:[buildActivityEmbed(check)], components:[new ActionRowBuilder().addComponents(
@@ -3415,8 +3431,21 @@ client.on("interactionCreate", async (interaction) => {
       const idParts  = customId.replace("sr_modal_","").split("_");
       const reportId = idParts[0];
       const pos      = idParts[1] || "Utility";
-      const report   = matchReportsFull.get(reportId);
-      if (!report) { await interaction.editReply("❌ Match report not found."); return; }
+      // Fetch or create a stub report so self-reports always work
+      let report = matchReportsFull.get(reportId);
+      if (!report) {
+        // Try to find in API
+        const apiReports = await apiGet("match_reports").catch(()=>[]);
+        const apiReport  = apiReports.find(r => (r.id||"").toUpperCase() === reportId);
+        if (apiReport) {
+          report = { ...apiReport, players: [], motmLocked: false, finalized: false };
+          matchReportsFull.set(reportId, report);
+        } else {
+          // Create a stub so submission still works — manager can verify later
+          report = { id: reportId, opponent: "Unknown", score: "?", result: "?", date: new Date().toDateString(), players: [], motmLocked: false, finalized: false };
+          matchReportsFull.set(reportId, report);
+        }
+      }
 
       const myIgn = getIgnForUser(user.id) || user.username;
       const subKey = reportId + "_" + user.id;
