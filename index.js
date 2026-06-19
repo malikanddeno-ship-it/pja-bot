@@ -2401,7 +2401,7 @@ client.on("interactionCreate", async (interaction) => {
               .setPlaceholder("yes or no | number  e.g. no | 1")),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_ratings")
-              .setLabel("Distribution / Shot-Stopping / Comm (1-10)")
+              .setLabel("Distribution / Shot-Stop / Comm (1-10)")
               .setStyle(TextInputStyle.Short).setRequired(true)
               .setPlaceholder("e.g. 7 / 9 / 8")),
           new ActionRowBuilder().addComponents(
@@ -2419,7 +2419,7 @@ client.on("interactionCreate", async (interaction) => {
         const defFields = [
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_def")
-              .setLabel("Tackles | Interceptions | Clearances | Blocks")
+              .setLabel("Tackles | Ints | Clearances | Blocks")
               .setStyle(TextInputStyle.Short).setRequired(true)
               .setPlaceholder("e.g. 4 | 3 | 2 | 1")),
           new ActionRowBuilder().addComponents(
@@ -2434,7 +2434,7 @@ client.on("interactionCreate", async (interaction) => {
               .setPlaceholder("e.g. 0 | 1 | 0  (leave blank if none)")),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_ratings")
-              .setLabel("Def.Positioning / 1v1 / Passing / Comm (1-10)")
+              .setLabel("DefPos / 1v1 / Passing / Comm (1-10)")
               .setStyle(TextInputStyle.Short).setRequired(true)
               .setPlaceholder("e.g. 8 / 7 / 7 / 8")),
           new ActionRowBuilder().addComponents(
@@ -2447,7 +2447,7 @@ client.on("interactionCreate", async (interaction) => {
         const midFields = [
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_goals")
-              .setLabel("Goals | Assists | Key Passes | Chances Created")
+              .setLabel("Goals | Assists | Key Passes | Chances")
               .setStyle(TextInputStyle.Short).setRequired(true)
               .setPlaceholder("e.g. 1 | 2 | 4 | 3")),
           new ActionRowBuilder().addComponents(
@@ -2457,7 +2457,7 @@ client.on("interactionCreate", async (interaction) => {
               .setPlaceholder("e.g. 3 | 2 | 1")),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_ratings")
-              .setLabel("Possession / Passing / Work Rate / Vision (1-10)")
+              .setLabel("Poss / Passing / Work Rate / Vision (1-10)")
               .setStyle(TextInputStyle.Short).setRequired(true)
               .setPlaceholder("e.g. 8 / 9 / 7 / 8")),
           new ActionRowBuilder().addComponents(
@@ -2485,7 +2485,7 @@ client.on("interactionCreate", async (interaction) => {
               .setPlaceholder("e.g. 3 | 3 | 2")),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_ratings")
-              .setLabel("Dribbling / Crossing / Pressing / Positioning (1-10)")
+              .setLabel("Dribbling / Cross / Press / Pos (1-10)")
               .setStyle(TextInputStyle.Short).setRequired(true)
               .setPlaceholder("e.g. 8 / 7 / 8 / 7")),
           new ActionRowBuilder().addComponents(
@@ -2508,12 +2508,12 @@ client.on("interactionCreate", async (interaction) => {
               .setPlaceholder("e.g. 2 | 1 | 7 | 4")),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_def")
-              .setLabel("Chances Created | Key Passes | Aerial Duels Won")
+              .setLabel("Chances | Key Passes | Aerial Duels Won")
               .setStyle(TextInputStyle.Short).setRequired(false)
               .setPlaceholder("e.g. 2 | 1 | 3  (leave blank if unknown)")),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId("sr_ratings")
-              .setLabel("Finishing / Positioning / Pressing / Hold-Up (1-10)")
+              .setLabel("Finishing / Pos / Pressing / Hold-Up (1-10)")
               .setStyle(TextInputStyle.Short).setRequired(true)
               .setPlaceholder("e.g. 9 / 8 / 7 / 6")),
           new ActionRowBuilder().addComponents(
