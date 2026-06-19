@@ -2,6 +2,7 @@ const { setMatchHandler } = require("./keep-alive");
 const {
   Client, GatewayIntentBits, Partials,
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
   SlashCommandBuilder, REST, Routes, PermissionFlagsBits,
 } = require("discord.js");
 require("dotenv").config();
@@ -46,6 +47,24 @@ const playerPoints    = new Map();
 const shopRedemptions = new Map();
 const suggestions     = new Map();
 const bugReports      = new Map();
+
+// ── NEW DATA STORES ───────────────────────────────────────────
+const newcomerProfiles  = new Map(); // userId → profile data
+const matchReportsFull  = new Map(); // reportId → full match report
+const selfReports       = new Map(); // `${reportId}_${userId}` → submission
+const motmVotes         = new Map(); // `${reportId}_${userId}` → targetIgn
+const openSpots         = new Map(); // position → { count, notes }
+const playerStats       = new Map(); // ign.toLowerCase() → stats object
+
+function getStats(ign) {
+  const key = ign.toLowerCase();
+  if (!playerStats.has(key)) playerStats.set(key, { goals:0, assists:0, saves:0, cleanSheets:0, motms:0, matches:0, activityScore:0 });
+  return playerStats.get(key);
+}
+function addStat(ign, field, amount) {
+  const s = getStats(ign);
+  s[field] = (s[field]||0) + amount;
+}
 
 // ── PENDING DM INPUT FLOWS ────────────────────────────────────
 // Stores multi-step DM conversations waiting for player input
@@ -838,6 +857,94 @@ const commands = [
       ))
     .addIntegerOption(o => o.setName("price").setDescription("New price in PJA points (1–9999)").setRequired(true).setMinValue(1).setMaxValue(9999)),
 
+  // ── MATCH REPORT SYSTEM ───────────────────────────────────────
+
+  new SlashCommandBuilder().setName("getting-started").setDescription("New to PJA? Fill out your team profile here"),
+
+  new SlashCommandBuilder().setName("setup-profile").setDescription("Fill out your PJA team profile (same as /getting-started)"),
+
+  new SlashCommandBuilder().setName("self-report").setDescription("Submit your stats for a match you played in")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID (from manager)").setRequired(true)),
+
+  new SlashCommandBuilder().setName("motm-vote").setDescription("Vote for Man of the Match")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true))
+    .addStringOption(o => o.setName("vote-for").setDescription("IGN of the player you're voting for").setRequired(true)),
+
+  new SlashCommandBuilder().setName("review-submissions").setDescription("Review player self-reports for a match [Manager only]")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true)),
+
+  new SlashCommandBuilder().setName("ai-motm").setDescription("Get AI Man of the Match recommendation [Manager only]")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true)),
+
+  new SlashCommandBuilder().setName("final-report").setDescription("Generate the final match report [Manager only]")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true))
+    .addStringOption(o => o.setName("motm").setDescription("Confirmed MOTM player IGN").setRequired(false))
+    .addStringOption(o => o.setName("notes").setDescription("Manager notes").setRequired(false)),
+
+  new SlashCommandBuilder().setName("stats").setDescription("View a player's stats")
+    .addStringOption(o => o.setName("player").setDescription("Player IGN (leave blank for your own)").setRequired(false)),
+
+  // ── ROSTER MANAGEMENT ─────────────────────────────────────────
+
+  new SlashCommandBuilder().setName("add-player").setDescription("Add a player to the PJA roster [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("VRFS username").setRequired(true))
+    .addStringOption(o => o.setName("position").setDescription("Main position").setRequired(true)
+      .addChoices({name:"GK",value:"GK"},{name:"CB",value:"CB"},{name:"LB",value:"LB"},{name:"RB",value:"RB"},{name:"CDM",value:"CDM"},{name:"CM",value:"CM"},{name:"CAM",value:"CAM"},{name:"LW",value:"LW"},{name:"RW",value:"RW"},{name:"ST",value:"ST"},{name:"Utility",value:"Utility"}))
+    .addStringOption(o => o.setName("role").setDescription("Team role").setRequired(true)
+      .addChoices({name:"Starter",value:"Starter"},{name:"Backup",value:"Backup"},{name:"Trialist",value:"Trialist"},{name:"Captain",value:"Captain"},{name:"Co-Captain",value:"Co-Captain"},{name:"Academy",value:"Academy"},{name:"Inactive",value:"Inactive"}))
+    .addStringOption(o => o.setName("backup").setDescription("Backup position").setRequired(false))
+    .addStringOption(o => o.setName("side").setDescription("Preferred side").setRequired(false)
+      .addChoices({name:"Left",value:"Left"},{name:"Right",value:"Right"},{name:"Center",value:"Center"},{name:"Any",value:"Any"}))
+    .addStringOption(o => o.setName("priority").setDescription("Team priority").setRequired(false)
+      .addChoices({name:"1st Main",value:"1st Main"},{name:"2nd Main",value:"2nd Main"},{name:"3rd Main",value:"3rd Main"},{name:"Other",value:"Other"}))
+    .addStringOption(o => o.setName("timezone").setDescription("Timezone e.g. GMT").setRequired(false))
+    .addStringOption(o => o.setName("notes").setDescription("Extra notes").setRequired(false)),
+
+  new SlashCommandBuilder().setName("edit-player").setDescription("Edit a player's profile [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("Player IGN to edit").setRequired(true))
+    .addStringOption(o => o.setName("position").setDescription("New main position").setRequired(false))
+    .addStringOption(o => o.setName("role").setDescription("New team role").setRequired(false)
+      .addChoices({name:"Starter",value:"Starter"},{name:"Backup",value:"Backup"},{name:"Trialist",value:"Trialist"},{name:"Captain",value:"Captain"},{name:"Co-Captain",value:"Co-Captain"},{name:"Academy",value:"Academy"},{name:"Inactive",value:"Inactive"}))
+    .addStringOption(o => o.setName("backup").setDescription("New backup position").setRequired(false))
+    .addStringOption(o => o.setName("priority").setDescription("New team priority").setRequired(false)
+      .addChoices({name:"1st Main",value:"1st Main"},{name:"2nd Main",value:"2nd Main"},{name:"3rd Main",value:"3rd Main"},{name:"Other",value:"Other"}))
+    .addStringOption(o => o.setName("timezone").setDescription("New timezone").setRequired(false))
+    .addStringOption(o => o.setName("availability").setDescription("New availability").setRequired(false))
+    .addStringOption(o => o.setName("notes").setDescription("Updated notes").setRequired(false)),
+
+  new SlashCommandBuilder().setName("remove-player").setDescription("Remove a player from the roster [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("Player IGN to remove").setRequired(true))
+    .addStringOption(o => o.setName("reason").setDescription("Reason for removal").setRequired(false)),
+
+  new SlashCommandBuilder().setName("promote").setDescription("Promote a player to a new role [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("Player IGN").setRequired(true))
+    .addStringOption(o => o.setName("role").setDescription("New role").setRequired(true)
+      .addChoices({name:"Captain",value:"Captain"},{name:"Co-Captain",value:"Co-Captain"},{name:"Starter",value:"Starter"},{name:"Backup",value:"Backup"})),
+
+  new SlashCommandBuilder().setName("demote").setDescription("Demote a player to a lower role [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("Player IGN").setRequired(true))
+    .addStringOption(o => o.setName("role").setDescription("New role").setRequired(true)
+      .addChoices({name:"Backup",value:"Backup"},{name:"Trialist",value:"Trialist"},{name:"Academy",value:"Academy"},{name:"Inactive",value:"Inactive"}))
+    .addStringOption(o => o.setName("reason").setDescription("Reason").setRequired(false)),
+
+  new SlashCommandBuilder().setName("release").setDescription("Release a player with confirmation [Manager only]")
+    .addStringOption(o => o.setName("ign").setDescription("Player IGN").setRequired(true))
+    .addStringOption(o => o.setName("reason").setDescription("Reason for release").setRequired(true)),
+
+  new SlashCommandBuilder().setName("open-spots").setDescription("View or update open positions PJA needs")
+    .addStringOption(o => o.setName("action").setDescription("View or update").setRequired(false)
+      .addChoices({name:"View",value:"view"},{name:"Set",value:"set"},{name:"Clear",value:"clear"}))
+    .addStringOption(o => o.setName("position").setDescription("Position e.g. GK, ST").setRequired(false))
+    .addIntegerOption(o => o.setName("count").setDescription("Number needed").setRequired(false))
+    .addStringOption(o => o.setName("notes").setDescription("Notes e.g. 'Must be active'").setRequired(false)),
+
+  new SlashCommandBuilder().setName("team-depth").setDescription("Show the team depth chart by position"),
+
+  new SlashCommandBuilder().setName("backup-data").setDescription("Export all bot data as JSON [Manager only]"),
+
+  new SlashCommandBuilder().setName("restore-data").setDescription("Restore bot data from JSON [Manager only]")
+    .addStringOption(o => o.setName("json").setDescription("Paste the JSON data to restore").setRequired(true)),
+
 ].map(c => c.toJSON());
 
 // ── REGISTER COMMANDS ─────────────────────────────────────────
@@ -1221,17 +1328,29 @@ client.on("interactionCreate", async (interaction) => {
       const motm     = interaction.options.getString("motm")    || "TBD";
       const notes    = interaction.options.getString("notes")   || "None";
       const reportId = makeId();
+      // Save to full match report map for self-report/motm/final-report system
+      matchReportsFull.set(reportId, {
+        id: reportId, opponent, score, result, scorers, assists, saves,
+        motm, notes, date: new Date().toISOString(),
+        postedBy: user.tag, players: [], status: "active",
+        motmLocked: false, finalized: false, aiMotm: null,
+      });
       try { await apiPost("match_reports", { id:reportId, opponent, score, result, scorers, assists, saves, motm, notes, date:new Date().toISOString(), source:"discord" }); } catch(e) {}
       const resultColor = result==="Win"?0x22c55e:result==="Loss"?0xef4444:0xf59e0b;
       const resultIcon  = result==="Win"?"✅":result==="Loss"?"❌":"🟡";
       const embed = pjaEmbed(resultIcon + " Match Report — PJA vs " + opponent, resultColor)
         .addFields(
-          { name:"Result", value:result, inline:true },{ name:"Score", value:score, inline:true },{ name:"Report ID", value:reportId, inline:true },
+          { name:"Result", value:result, inline:true },{ name:"Score", value:score, inline:true },{ name:"Report ID", value:"**"+reportId+"**", inline:true },
           { name:"⚽ Scorers", value:scorers },{ name:"🎯 Assists", value:assists, inline:true },{ name:"🧤 Saves", value:saves, inline:true },
           { name:"🏆 MOTM", value:motm, inline:true },{ name:"📝 Notes", value:notes },
         )
-        .setFooter({ text:"Reported by " + user.tag + " | Project Azure (PJA)" });
-      await interaction.editReply({ embeds: [embed] });
+        .setFooter({ text:"Reported by " + user.tag + " | Share the Report ID with players for /self-report | Project Azure (PJA)" });
+      const matchRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("matchrep_selfreport_"+reportId).setLabel("📊 Submit Stats").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("matchrep_motm_"+reportId).setLabel("🏆 Vote MOTM").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("matchrep_review_"+reportId).setLabel("🔍 View Submissions").setStyle(ButtonStyle.Secondary),
+      );
+      await interaction.editReply({ embeds: [embed], components: [matchRow] });
       return;
     }
 
@@ -2198,6 +2317,616 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    // ════════════════════════════════════════════════════════
+    // ── MATCH REPORT SYSTEM ──────────────────────────────────
+    // ════════════════════════════════════════════════════════
+
+    // ── /getting-started & /setup-profile ─────────────────
+    if (commandName === "getting-started" || commandName === "setup-profile") {
+      const modal = new ModalBuilder()
+        .setCustomId("gs_modal_" + user.id)
+        .setTitle("PJA — Player Setup Profile");
+      const rows = [
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_ign").setLabel("VRFS Username").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("Your in-game name")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_position").setLabel("Main Position / Backup Position").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. ST / LW")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_timezone").setLabel("Timezone & Availability").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. GMT — evenings & weekends")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_playstyle").setLabel("Play Style & Priority").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. Aggressive | 1st Main")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_notes").setLabel("Strengths, Weaknesses & Notes").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Tell managers anything useful. Clip link optional.")),
+      ];
+      rows.forEach(r => modal.addComponents(r));
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // ── /self-report ───────────────────────────────────────
+    if (commandName === "self-report") {
+      const reportId = interaction.options.getString("report-id").toUpperCase();
+      const report   = matchReportsFull.get(reportId);
+      if (!report) {
+        await interaction.reply({ content: "❌ Match report **" + reportId + "** not found. Ask your manager for the correct ID.", ephemeral: true });
+        return;
+      }
+      const subKey = reportId + "_" + user.id;
+      if (selfReports.has(subKey)) {
+        const ex = selfReports.get(subKey);
+        if (ex.status !== "denied") {
+          await interaction.reply({ content: "⚠️ You already submitted for this match. **Status:** " + ex.status + "\nAsk a manager to reopen it if needed.", ephemeral: true });
+          return;
+        }
+      }
+      // Find this player's assigned position
+      const assigned = report.players ? report.players.find(p => p.userId === user.id || (p.ign && p.ign.toLowerCase() === (getIgnForUser(user.id)||"").toLowerCase())) : null;
+      const pos = assigned ? assigned.position : "Utility";
+      const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos] || "util";
+
+      const modal = new ModalBuilder()
+        .setCustomId("sr_modal_" + reportId + "_" + pos)
+        .setTitle("Self-Report — " + pos + " (" + report.opponent + ")");
+
+      const gkFields = [
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_saves").setLabel("Saves | Big Saves").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 4 | 2")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Goals Conceded").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Distribution / Communication / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7 / 8 / 9")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_mistakes").setLabel("Mistakes Leading to Goals").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 0")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+      ];
+      const defFields = [
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Tackles | Interceptions | Clearances | Blocks").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 3 | 2 | 1 | 1")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Mistakes Led to Goal").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 1 | 0")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Def. Positioning / Communication (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+      ];
+      const midFields = [
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Key Passes").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 2 | 3")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Def. Recoveries").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Possession / Passing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 9 / 7")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+      ];
+      const wingFields = [
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Chances Created").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 1 | 3")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Crosses/Key Passes | Successful Attacks").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 2 | 4")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Pressing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+      ];
+      const stFields = [
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Shots").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 2 | 1 | 5")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Chances Created").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Finishing / Positioning / Pressing (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7 / 6")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+      ];
+      const utilFields = [
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 1")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Saves (if any) | Def. Plays (if any)").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 2")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Overall Impact (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7")),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+      ];
+
+      const fieldMap = { gk:gkFields, def:defFields, mid:midFields, wing:wingFields, st:stFields, util:utilFields };
+      const fields   = fieldMap[posType] || utilFields;
+      // Modals support max 5 rows; trim if util only has 4
+      fields.forEach(f => modal.addComponents(f));
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // ── /motm-vote ─────────────────────────────────────────
+    if (commandName === "motm-vote") {
+      await interaction.deferReply({ ephemeral: true });
+      const reportId = interaction.options.getString("report-id").toUpperCase();
+      const voteFor  = interaction.options.getString("vote-for").trim();
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Match report **" + reportId + "** not found."); return; }
+      if (report.motmLocked) { await interaction.editReply("🔒 MOTM voting for this match has been locked."); return; }
+      const myIgn = getIgnForUser(user.id) || user.username;
+      if (voteFor.toLowerCase() === myIgn.toLowerCase()) { await interaction.editReply("❌ You cannot vote for yourself."); return; }
+      const voteKey = reportId + "_" + user.id;
+      const prev    = motmVotes.get(voteKey);
+      motmVotes.set(voteKey, voteFor);
+      const allVotes = [...motmVotes.entries()].filter(([k]) => k.startsWith(reportId + "_"));
+      const tally    = {};
+      allVotes.forEach(([,ign]) => { tally[ign] = (tally[ign]||0) + 1; });
+      const topEntries = Object.entries(tally).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([ign,c]) => "• **"+ign+"** — "+c+" vote(s)").join("\n");
+      const changed = prev && prev !== voteFor;
+      await interaction.editReply({ embeds: [pjaEmbed("🏆 MOTM Vote Recorded", 0x22c55e)
+        .setDescription((changed ? "✅ Changed vote from **"+prev+"** to **"+voteFor+"**" : "✅ Voted for **"+voteFor+"**") + "\n\n**Current standings:**\n" + (topEntries || "No votes yet"))
+        .setFooter({ text: "Votes are anonymous to other players | Project Azure (PJA)" })] });
+      return;
+    }
+
+    // ── /review-submissions ────────────────────────────────
+    if (commandName === "review-submissions") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const reportId = interaction.options.getString("report-id").toUpperCase();
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Match report **" + reportId + "** not found."); return; }
+      const subs = [...selfReports.entries()]
+        .filter(([k]) => k.startsWith(reportId + "_"))
+        .map(([, v]) => v);
+      if (subs.length === 0) { await interaction.editReply("📭 No submissions yet for match **" + reportId + "**."); return; }
+      const statusEmoji = { pending:"⏳", approved:"✅", denied:"❌", needs_proof:"📎" };
+      const lines = subs.map(s =>
+        (statusEmoji[s.status]||"❓") + " **" + s.ign + "** (" + s.position + ") — " + s.status +
+        (s.goals !== undefined ? "\n  ⚽ Goals: " + (s.goals||0) + " | 🎯 Ast: " + (s.assists||0) + (s.saves!==undefined ? " | 🧤 Saves: " + (s.saves||0) : "") : "") +
+        (s.notes ? "\n  📝 " + s.notes.substring(0,60) : "")
+      ).join("\n\n");
+      const firstPending = subs.find(s => s.status === "pending");
+      const embed = pjaEmbed("📋 Submissions — " + reportId + " (" + subs.length + ")", 0x2563eb)
+        .setDescription(lines || "No submissions.")
+        .addFields({ name:"📊 Match", value:"PJA vs **"+report.opponent+"** | "+report.result+" "+report.score+" | "+report.date, inline:false });
+      if (firstPending) {
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("sub_approve_"+reportId+"_"+firstPending.userId).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId("sub_deny_"+reportId+"_"+firstPending.userId).setLabel("❌ Deny").setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId("sub_proof_"+reportId+"_"+firstPending.userId).setLabel("📎 Needs Proof").setStyle(ButtonStyle.Secondary),
+        );
+        await interaction.editReply({ embeds: [embed], components: [row] });
+      } else {
+        await interaction.editReply({ embeds: [embed] });
+      }
+      return;
+    }
+
+    // ── /ai-motm ───────────────────────────────────────────
+    if (commandName === "ai-motm") {
+      await interaction.deferReply();
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const reportId = interaction.options.getString("report-id").toUpperCase();
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Match report **" + reportId + "** not found."); return; }
+      const approvedSubs = [...selfReports.entries()]
+        .filter(([k,v]) => k.startsWith(reportId+"_") && v.status === "approved")
+        .map(([,v]) => v);
+      if (approvedSubs.length === 0) { await interaction.editReply("📭 No approved submissions yet for **" + reportId + "**. Approve some stats first."); return; }
+
+      // Tally MOTM votes
+      const voteTally = {};
+      [...motmVotes.entries()].filter(([k]) => k.startsWith(reportId+"_")).forEach(([,ign]) => {
+        voteTally[ign.toLowerCase()] = (voteTally[ign.toLowerCase()]||0)+1;
+      });
+
+      function calcScore(sub, votes) {
+        const pos = (sub.position||"Utility").toUpperCase();
+        const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos]||"util";
+        let score = 0; const reasons = [];
+        function add(pts, label) { if(pts>0&&label){score+=pts;reasons.push(label);} else score+=pts; }
+        const s = sub;
+        if (posType==="gk") {
+          add((parseInt(s.saves)||0)*4, s.saves?s.saves+" save(s)":null);
+          add((parseInt(s.bigSaves)||0)*5, s.bigSaves?s.bigSaves+" big save(s)":null);
+          add(s.cleanSheet?"yes"===s.cleanSheet.toLowerCase()?6:0:0, s.cleanSheet?.toLowerCase()==="yes"?"Clean sheet":null);
+          add((parseFloat(s.distributionRating)||0)*0.5, null);
+          add((parseFloat(s.commRating)||0)*0.5, null);
+          add((parseInt(s.mistakes)||0)*-3, null);
+        } else if (posType==="def") {
+          add((parseInt(s.tackles)||0)*3, s.tackles?s.tackles+" tackle(s)":null);
+          add((parseInt(s.interceptions)||0)*3, s.interceptions?s.interceptions+" int(s)":null);
+          add((parseInt(s.clearances)||0)*2, s.clearances?s.clearances+" clearance(s)":null);
+          add((parseInt(s.blocks)||0)*3, s.blocks?s.blocks+" block(s)":null);
+          add(s.cleanSheet?.toLowerCase()==="yes"?4:0, s.cleanSheet?.toLowerCase()==="yes"?"Clean sheet":null);
+          add((parseInt(s.goals)||0)*5, s.goals?s.goals+" goal(s)":null);
+          add((parseInt(s.assists)||0)*4, s.assists?s.assists+" assist(s)":null);
+          add((parseInt(s.mistakes)||0)*-3, null);
+        } else if (posType==="mid") {
+          add((parseInt(s.goals)||0)*5, s.goals?s.goals+" goal(s)":null);
+          add((parseInt(s.assists)||0)*5, s.assists?s.assists+" assist(s)":null);
+          add((parseInt(s.keyPasses)||0)*4, s.keyPasses?s.keyPasses+" key pass(es)":null);
+          add((parseInt(s.defRecoveries)||0)*3, s.defRecoveries?s.defRecoveries+" recovery(ies)":null);
+          add((parseFloat(s.passingRating)||0)*0.5, null);
+        } else if (posType==="wing") {
+          add((parseInt(s.goals)||0)*6, s.goals?s.goals+" goal(s)":null);
+          add((parseInt(s.assists)||0)*5, s.assists?s.assists+" assist(s)":null);
+          add((parseInt(s.chancesCreated)||0)*4, s.chancesCreated?s.chancesCreated+" chance(s)":null);
+          add((parseInt(s.crosses)||0)*3, s.crosses?s.crosses+" cross/KP":null);
+          add((parseInt(s.successfulAttacks)||0)*3, s.successfulAttacks?s.successfulAttacks+" att(s)":null);
+        } else if (posType==="st") {
+          add((parseInt(s.goals)||0)*7, s.goals?s.goals+" goal(s)":null);
+          add((parseInt(s.assists)||0)*4, s.assists?s.assists+" assist(s)":null);
+          add((parseInt(s.shots)||0)*2, s.shots?s.shots+" shot(s)":null);
+          add((parseInt(s.chancesCreated)||0)*3, s.chancesCreated?s.chancesCreated+" chance(s)":null);
+          add((parseFloat(s.finishingRating)||0)*0.5, null);
+        } else {
+          add((parseInt(s.goals)||0)*5, s.goals?s.goals+" goal(s)":null);
+          add((parseInt(s.assists)||0)*4, s.assists?s.assists+" assist(s)":null);
+          add((parseFloat(s.overallRating)||0)*1, null);
+        }
+        const vc = votes[sub.ign.toLowerCase()]||0;
+        add(vc*3, vc?vc+" player vote(s)":null);
+        const confidence = score>=20?"High":score>=10?"Medium":"Low";
+        return { score, reasons:reasons.slice(0,4), confidence };
+      }
+
+      const scored = approvedSubs.map(s => {
+        const { score, reasons, confidence } = calcScore(s, voteTally);
+        return { ign:s.ign, position:s.position, score, reasons, confidence, votes:voteTally[s.ign.toLowerCase()]||0 };
+      }).sort((a,b)=>b.score-a.score).slice(0,3);
+
+      const confEmoji = { High:"🟢", Medium:"🟡", Low:"🔴" };
+      const lines = scored.map((c,i) =>
+        (i===0?"🥇":i===1?"🥈":"🥉") + " **"+c.ign+"** ("+c.position+") — Score: **"+c.score+"** | "+c.votes+" vote(s) | "+confEmoji[c.confidence]+" "+c.confidence+" confidence\n" +
+        (c.reasons.length?"  └ "+c.reasons.join(", "):"")+"\n"
+      ).join("\n");
+
+      const top = scored[0];
+      const embed = pjaEmbed("🤖 AI MOTM Recommendation — " + reportId, 0x2563eb)
+        .setDescription("**AI suggests: "+top.ign+"**\n> "+top.reasons.join(", ")+(top.votes?" + "+top.votes+" player vote(s)":"")+".\n\n" + lines)
+        .setFooter({ text:"AI recommendation only — manager makes final decision | Project Azure (PJA)" });
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("motm_approve_"+reportId+"_"+top.ign).setLabel("✅ Approve AI MOTM").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("motm_different_"+reportId).setLabel("🔄 Choose Different").setStyle(ButtonStyle.Secondary),
+      );
+      await interaction.editReply({ embeds: [embed], components: [row] });
+      return;
+    }
+
+    // ── /final-report ──────────────────────────────────────
+    if (commandName === "final-report") {
+      await interaction.deferReply();
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const reportId   = interaction.options.getString("report-id").toUpperCase();
+      const motmOverride = interaction.options.getString("motm");
+      const managerNotes = interaction.options.getString("notes") || "None";
+      const report     = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Match report **" + reportId + "** not found."); return; }
+      const approvedSubs = [...selfReports.entries()]
+        .filter(([k,v]) => k.startsWith(reportId+"_") && v.status==="approved")
+        .map(([,v]) => v);
+
+      // Aggregate stats
+      const goalScorers = {}; const assisters = {}; const cleanSheetPlayers = []; const saveMap = {};
+      approvedSubs.forEach(s => {
+        if (parseInt(s.goals)>0)    goalScorers[s.ign]  = (goalScorers[s.ign]||0) + parseInt(s.goals);
+        if (parseInt(s.assists)>0)  assisters[s.ign]    = (assisters[s.ign]||0)   + parseInt(s.assists);
+        if (parseInt(s.saves)>0)    saveMap[s.ign]      = (saveMap[s.ign]||0)     + parseInt(s.saves);
+        if (s.cleanSheet?.toLowerCase()==="yes") cleanSheetPlayers.push(s.ign);
+      });
+      const fmtMap = obj => Object.entries(obj).length ? Object.entries(obj).map(([n,c])=>"**"+n+"** x"+c).join(", ") : "None";
+      const csStr  = cleanSheetPlayers.length ? cleanSheetPlayers.map(n=>"**"+n+"**").join(", ") : "None";
+
+      // MOTM
+      const voteTally = {};
+      [...motmVotes.entries()].filter(([k])=>k.startsWith(reportId+"_")).forEach(([,ign])=>{ voteTally[ign.toLowerCase()]=(voteTally[ign.toLowerCase()]||0)+1; });
+      const topVotedIgn = Object.entries(voteTally).sort((a,b)=>b[1]-a[1])[0]?.[0];
+      const confirmedMotm = motmOverride || report.motm || (topVotedIgn ? [...new Set(approvedSubs.map(s=>s.ign))].find(n=>n.toLowerCase()===topVotedIgn) || topVotedIgn : "TBD");
+
+      // Top performers
+      const performers = approvedSubs.map(s => {
+        const pts = (parseInt(s.goals)||0)*7+(parseInt(s.assists)||0)*5+(parseInt(s.saves)||0)*3+(s.cleanSheet?.toLowerCase()==="yes"?4:0);
+        return { ign:s.ign, pos:s.position, pts };
+      }).sort((a,b)=>b.pts-a.pts).slice(0,3);
+      const perfStr = performers.length ? performers.map((p,i)=>(i+1)+". **"+p.ign+"** ("+p.pos+") — "+p.pts+" pts").join("\n") : "None";
+
+      const resultEmoji = {Win:"✅",Won:"✅",Loss:"❌",Lost:"❌",Draw:"🟡"};
+      const resultColor = {Win:0x22c55e,Won:0x22c55e,Loss:0xef4444,Lost:0xef4444,Draw:0xf59e0b};
+      const embed = pjaEmbed("🏆 PJA Match Report — " + reportId, resultColor[report.result]||0x2563eb)
+        .setDescription(
+          "```\n" +
+          "PJA vs " + report.opponent + "\n" +
+          "Score: " + report.score + "  |  Result: " + report.result + "\n" +
+          "Date: " + report.date + "\n" +
+          "```"
+        )
+        .addFields(
+          { name:"⚽ Goals",         value:fmtMap(goalScorers),  inline:true },
+          { name:"🎯 Assists",        value:fmtMap(assisters),    inline:true },
+          { name:"🧤 Saves",          value:fmtMap(saveMap),      inline:true },
+          { name:"🛡️ Clean Sheets",  value:csStr,                inline:true },
+          { name:"🏆 MOTM",           value:"**"+confirmedMotm+"**", inline:true },
+          { name:"🤖 AI Suggestion",  value:report.aiMotm||"Use /ai-motm first", inline:true },
+          { name:"🎯 Top Performers", value:perfStr },
+          { name:"📝 Manager Notes",  value:managerNotes },
+        )
+        .setFooter({ text:"Final Report by "+user.tag+" | Project Azure (PJA)" });
+
+      report.motm       = confirmedMotm;
+      report.finalized  = true;
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("finalrep_post_"+reportId).setLabel("📢 Post Report").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("finalrep_complete_"+reportId).setLabel("✅ Mark Complete").setStyle(ButtonStyle.Success),
+      );
+      await interaction.editReply({ embeds: [embed], components: [row] });
+      return;
+    }
+
+    // ── /stats ─────────────────────────────────────────────
+    if (commandName === "stats") {
+      await interaction.deferReply();
+      const targetIgn = interaction.options.getString("player") || getIgnForUser(user.id) || user.username;
+      const localStats = getStats(targetIgn);
+      const liveStats  = await apiGet("stats");
+      const remote     = liveStats.find(s => (s.player||s.name||s.ign||"").toLowerCase()===targetIgn.toLowerCase());
+      const g   = Math.max(localStats.goals||0,        parseInt(remote?.goals||0));
+      const a   = Math.max(localStats.assists||0,      parseInt(remote?.assists||0));
+      const sv  = Math.max(localStats.saves||0,        parseInt(remote?.saves||0));
+      const cs  = Math.max(localStats.cleanSheets||0,  parseInt(remote?.cleanSheets||0));
+      const mo  = Math.max(localStats.motms||0,        parseInt(remote?.motms||0));
+      const mp  = Math.max(localStats.matches||0,      parseInt(remote?.matches||0));
+      const bar = n => { const p=Math.min(n,10); return "█".repeat(p)+"░".repeat(10-p); };
+      const embed = pjaEmbed("📊 Stats — " + targetIgn)
+        .addFields(
+          { name:"⚽ Goals",         value:"**"+g+"**  `"+bar(g)+"`",  inline:true },
+          { name:"🎯 Assists",        value:"**"+a+"**  `"+bar(a)+"`",  inline:true },
+          { name:"🧤 Saves",          value:"**"+sv+"** `"+bar(sv)+"`", inline:true },
+          { name:"🛡️ Clean Sheets",  value:"**"+cs+"** `"+bar(cs)+"`", inline:true },
+          { name:"🏆 MOTMs",          value:"**"+mo+"** `"+bar(mo)+"`", inline:true },
+          { name:"🎮 Matches",        value:"**"+mp+"**",               inline:true },
+          { name:"🪙 PJA Points",     value:getPoints(targetIgn)+" pts",inline:true },
+          { name:"🏅 Awards",         value:(playerAwards.get(targetIgn.toLowerCase())||[]).length+" award(s)", inline:true },
+        );
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    // ════════════════════════════════════════════════════════
+    // ── ROSTER MANAGEMENT ─────────────────────────────────────
+    // ════════════════════════════════════════════════════════
+
+    // ── /add-player ────────────────────────────────────────
+    if (commandName === "add-player") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const np = {
+        name:     interaction.options.getString("ign"),
+        ign:      interaction.options.getString("ign"),
+        position: interaction.options.getString("position"),
+        role:     interaction.options.getString("role"),
+        backup:   interaction.options.getString("backup")   || "None",
+        side:     interaction.options.getString("side")     || "Any",
+        teamMain: interaction.options.getString("priority") || "Other",
+        timezone: interaction.options.getString("timezone") || "Unknown",
+        notes:    interaction.options.getString("notes")    || "",
+        joinedAt: new Date().toISOString(),
+        addedBy:  user.tag,
+      };
+      const existingRoster = await apiGet("roster");
+      const alreadyIn = existingRoster.find(p => (p.name||p.ign||"").toLowerCase() === np.ign.toLowerCase());
+      if (alreadyIn) { await interaction.editReply("⚠️ **"+np.ign+"** is already on the roster."); return; }
+      const added = await apiPost("roster", np);
+      const embed = pjaEmbed("✅ Player Added — "+np.ign, 0x22c55e)
+        .addFields(
+          { name:"🎮 IGN",       value:np.ign,      inline:true },
+          { name:"📍 Position",  value:np.position, inline:true },
+          { name:"🎽 Role",      value:np.role,     inline:true },
+          { name:"🏆 Priority",  value:np.teamMain, inline:true },
+          { name:"🌍 Timezone",  value:np.timezone, inline:true },
+          { name:"🎙️ Added by", value:user.tag,    inline:true },
+        );
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    // ── /edit-player ───────────────────────────────────────
+    if (commandName === "edit-player") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const ign      = interaction.options.getString("ign");
+      const liveRoster = await apiGet("roster");
+      const player   = liveRoster.find(p => (p.name||p.ign||"").toLowerCase() === ign.toLowerCase());
+      if (!player) { await interaction.editReply("❌ Player **"+ign+"** not found on the roster."); return; }
+      const updates = {};
+      const pos  = interaction.options.getString("position");     if (pos)          updates.position     = pos;
+      const role = interaction.options.getString("role");         if (role)         updates.role         = role;
+      const back = interaction.options.getString("backup");       if (back)         updates.backup       = back;
+      const prio = interaction.options.getString("priority");     if (prio)         updates.teamMain     = prio;
+      const tz   = interaction.options.getString("timezone");     if (tz)           updates.timezone     = tz;
+      const avail= interaction.options.getString("availability"); if (avail)        updates.availability = avail;
+      const note = interaction.options.getString("notes");        if (note)         updates.notes        = note;
+      const fieldsChanged = Object.keys(updates);
+      if (fieldsChanged.length === 0) { await interaction.editReply("⚠️ No changes provided."); return; }
+      // Patch via API if they have an id
+      if (player.id) {
+        try {
+          await fetch(WEBSITE_API + "roster/" + player.id, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          });
+        } catch(e) {}
+      }
+      const embed = pjaEmbed("✏️ Player Updated — "+ign, 0x2563eb)
+        .setDescription("Updated **"+fieldsChanged.join(", ")+"**")
+        .addFields(fieldsChanged.map(f => ({ name:f, value:String(updates[f]), inline:true })));
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    // ── /remove-player ─────────────────────────────────────
+    if (commandName === "remove-player") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const ign    = interaction.options.getString("ign");
+      const reason = interaction.options.getString("reason") || "Not specified";
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("removeplayer_confirm_"+encodeURIComponent(ign)).setLabel("✅ Yes, Remove").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("removeplayer_cancel_"+encodeURIComponent(ign)).setLabel("❌ Cancel").setStyle(ButtonStyle.Secondary),
+      );
+      await interaction.editReply({ embeds: [pjaEmbed("⚠️ Confirm Remove — "+ign, 0xef4444)
+        .setDescription("Are you sure you want to **remove "+ign+"** from the roster?\n\n📝 **Reason:** "+reason)
+        .setFooter({ text:"This cannot be undone easily." })], components: [row] });
+      return;
+    }
+
+    // ── /promote ───────────────────────────────────────────
+    if (commandName === "promote") {
+      await interaction.deferReply();
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const ign     = interaction.options.getString("ign");
+      const newRole = interaction.options.getString("role");
+      const liveRoster = await apiGet("roster");
+      const player  = liveRoster.find(p => (p.name||p.ign||"").toLowerCase() === ign.toLowerCase());
+      if (!player) { await interaction.editReply("❌ Player **"+ign+"** not found."); return; }
+      const oldRole = player.role || "—";
+      if (player.id) {
+        try {
+          await fetch(WEBSITE_API + "roster/" + player.id, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ role: newRole }) });
+        } catch(e) {}
+      }
+      await interaction.editReply({ embeds: [pjaEmbed("🎖️ Player Promoted — "+ign, 0x22c55e)
+        .setDescription("🎉 **"+ign+"** has been promoted!")
+        .addFields(
+          { name:"👤 Player",   value:ign,      inline:true },
+          { name:"⬆️ Old Role", value:oldRole,  inline:true },
+          { name:"🆕 New Role", value:newRole,  inline:true },
+          { name:"🎙️ By",      value:user.tag, inline:true },
+        )] });
+      return;
+    }
+
+    // ── /demote ────────────────────────────────────────────
+    if (commandName === "demote") {
+      await interaction.deferReply();
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const ign     = interaction.options.getString("ign");
+      const newRole = interaction.options.getString("role");
+      const reason  = interaction.options.getString("reason") || "Not specified";
+      const liveRoster = await apiGet("roster");
+      const player  = liveRoster.find(p => (p.name||p.ign||"").toLowerCase() === ign.toLowerCase());
+      if (!player) { await interaction.editReply("❌ Player **"+ign+"** not found."); return; }
+      const oldRole = player.role || "—";
+      if (player.id) {
+        try {
+          await fetch(WEBSITE_API + "roster/" + player.id, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ role: newRole }) });
+        } catch(e) {}
+      }
+      await interaction.editReply({ embeds: [pjaEmbed("⬇️ Player Demoted — "+ign, 0xf59e0b)
+        .addFields(
+          { name:"👤 Player",   value:ign,      inline:true },
+          { name:"⬆️ Old Role", value:oldRole,  inline:true },
+          { name:"🔽 New Role", value:newRole,  inline:true },
+          { name:"📝 Reason",   value:reason,   inline:false },
+          { name:"🎙️ By",      value:user.tag, inline:true },
+        )] });
+      return;
+    }
+
+    // ── /release ───────────────────────────────────────────
+    if (commandName === "release") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const ign    = interaction.options.getString("ign");
+      const reason = interaction.options.getString("reason");
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("release_confirm_"+encodeURIComponent(ign)).setLabel("✅ Confirm Release").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("release_cancel_"+encodeURIComponent(ign)).setLabel("❌ Cancel").setStyle(ButtonStyle.Secondary),
+      );
+      await interaction.editReply({ embeds: [pjaEmbed("⚠️ Confirm Release — "+ign, 0xef4444)
+        .setDescription("Release **"+ign+"** from Project Azure?\n📝 **Reason:** "+reason)], components: [row] });
+      return;
+    }
+
+    // ── /open-spots ────────────────────────────────────────
+    if (commandName === "open-spots") {
+      await interaction.deferReply();
+      const action = interaction.options.getString("action") || "view";
+      if (action === "set") {
+        if (!isAdmin(member)) { await interaction.editReply("❌ Only Managers can update open spots."); return; }
+        const pos   = interaction.options.getString("position");
+        const count = interaction.options.getInteger("count") || 1;
+        const notes = interaction.options.getString("notes") || "";
+        if (!pos) { await interaction.editReply("❌ Provide a position."); return; }
+        openSpots.set(pos.toUpperCase(), { count, notes, updatedBy: user.tag });
+        await interaction.editReply("✅ Updated: **"+pos.toUpperCase()+"** — "+count+" spot(s) needed"+(notes?" ("+notes+")":""));
+        return;
+      }
+      if (action === "clear") {
+        if (!isAdmin(member)) { await interaction.editReply("❌ Only Managers can clear open spots."); return; }
+        const pos = interaction.options.getString("position");
+        if (pos) { openSpots.delete(pos.toUpperCase()); await interaction.editReply("✅ Cleared open spots for **"+pos.toUpperCase()+"**."); }
+        else { openSpots.clear(); await interaction.editReply("✅ All open spots cleared."); }
+        return;
+      }
+      // View
+      if (openSpots.size === 0) { await interaction.editReply({ embeds: [pjaEmbed("🔓 Open Spots — Project Azure", 0x22c55e).setDescription("✅ No open spots right now. Roster is full!")] }); return; }
+      const lines = [...openSpots.entries()].map(([pos,d]) => "• **"+pos+"** — "+d.count+" needed"+(d.notes?" _("+d.notes+")_":"")).join("\n");
+      await interaction.editReply({ embeds: [pjaEmbed("🔓 Open Spots — Project Azure", 0xf59e0b)
+        .setDescription("PJA is currently looking for:\n\n"+lines)
+        .addFields({ name:"📋 Total Spots", value:([...openSpots.values()].reduce((a,d)=>a+d.count,0))+" position(s)", inline:true })] });
+      return;
+    }
+
+    // ── /team-depth ────────────────────────────────────────
+    if (commandName === "team-depth") {
+      await interaction.deferReply();
+      const liveRoster = await apiGet("roster");
+      if (liveRoster.length === 0) { await interaction.editReply("📋 Roster is empty."); return; }
+      const groups = {};
+      liveRoster.forEach(p => {
+        const pos = p.position || "Unknown";
+        if (!groups[pos]) groups[pos] = { starters:[], backups:[], trialists:[], others:[] };
+        const role = (p.role||"").toLowerCase();
+        if (role==="starter"||role==="captain"||role==="co-captain") groups[pos].starters.push(p.name||p.ign);
+        else if (role==="backup") groups[pos].backups.push(p.name||p.ign);
+        else if (role==="trialist") groups[pos].trialists.push(p.name||p.ign);
+        else groups[pos].others.push(p.name||p.ign);
+      });
+      const posOrder = ["GK","CB","LB","RB","CDM","CM","CAM","LW","RW","ST","Utility"];
+      const sortedPosKeys = [...new Set([...posOrder.filter(p=>groups[p]), ...Object.keys(groups).filter(p=>!posOrder.includes(p))])];
+      const fields = sortedPosKeys.slice(0,25).map(pos => {
+        const g = groups[pos];
+        const lines = [];
+        if (g.starters.length)  lines.push("⭐ "+g.starters.join(", "));
+        if (g.backups.length)   lines.push("🔵 "+g.backups.join(", "));
+        if (g.trialists.length) lines.push("🔬 "+g.trialists.join(", "));
+        if (g.others.length)    lines.push("⬜ "+g.others.join(", "));
+        return { name:"📍 "+pos, value:lines.join("\n")||"—", inline:true };
+      });
+      const embed = pjaEmbed("📊 Team Depth Chart — Project Azure")
+        .addFields(...fields)
+        .setDescription("⭐ Starter | 🔵 Backup | 🔬 Trialist | ⬜ Other\n\u200b");
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+
+    // ── /backup-data ───────────────────────────────────────
+    if (commandName === "backup-data") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const [rosterData, statsData, awardsData] = await Promise.all([apiGet("roster"), apiGet("stats"), apiGet("awards")]);
+      const exportObj = {
+        exportedAt:     new Date().toISOString(),
+        version:        "2.0",
+        roster:         rosterData,
+        stats:          statsData,
+        awards:         awardsData,
+        newcomerProfiles: [...newcomerProfiles.entries()].map(([k,v])=>({userId:k,...v})),
+        matchReports:   [...matchReportsFull.entries()].map(([k,v])=>({id:k,...v})),
+        selfReports:    [...selfReports.entries()].map(([k,v])=>({key:k,...v})),
+        openSpots:      [...openSpots.entries()].map(([pos,d])=>({position:pos,...d})),
+        localStats:     [...playerStats.entries()].map(([ign,s])=>({ign,...s})),
+        warnings:       [...playerWarnings.entries()].map(([ign,w])=>({ign,warnings:w})),
+        points:         [...playerPoints.entries()].map(([ign,pts])=>({ign,pts})),
+        applications:   [...applications.values()],
+        scheduleList,
+        giveaways:      [...giveaways.entries()].map(([id,g])=>({id, prize:g.prize, ended:g.ended, entryCount:g.entries.size})),
+      };
+      const json    = JSON.stringify(exportObj, null, 2);
+      const buf     = Buffer.from(json, "utf8");
+      const { AttachmentBuilder } = require("discord.js");
+      const attachment = new AttachmentBuilder(buf, { name: "pja-backup-"+Date.now()+".json" });
+      await interaction.editReply({ content:"✅ Backup ready! Download the file below.", files: [attachment] });
+      return;
+    }
+
+    // ── /restore-data ──────────────────────────────────────
+    if (commandName === "restore-data") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
+      const jsonStr = interaction.options.getString("json");
+      let data;
+      try { data = JSON.parse(jsonStr); } catch(e) { await interaction.editReply("❌ Invalid JSON. Make sure you paste the full backup JSON."); return; }
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("restore_confirm_"+user.id).setLabel("✅ Yes, Restore").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("restore_cancel_"+user.id) .setLabel("❌ Cancel")      .setStyle(ButtonStyle.Secondary),
+      );
+      // Store temp
+      pendingInputs.set("restore_"+user.id, { step:"restore_confirm", data });
+      await interaction.editReply({ embeds: [pjaEmbed("⚠️ Confirm Restore", 0xef4444)
+        .setDescription("This will overwrite in-memory bot data (warnings, points, local stats, newcomer profiles, match reports, open spots).\n\nAPI roster/stats/awards will **not** be overwritten by this command.\n\nAre you sure?")], components: [row] });
+      return;
+    }
+
   } catch (err) {
     console.error("Error in /"+commandName+":", err);
     try {
@@ -2216,6 +2945,26 @@ client.on("interactionCreate", async (interaction) => {
   try {
     const { customId, user, member } = interaction;
     const parts = customId.split("_");
+
+    // ── Match report quick-action buttons ─────────────────
+    if (parts[0]==="matchrep") {
+      const action   = parts[1];
+      const reportId = parts[2];
+      if (action==="selfreport") {
+        await interaction.reply({ content:"📊 Use `/self-report report-id:**"+reportId+"**` to submit your stats for this match!", ephemeral:true });
+        return;
+      }
+      if (action==="motm") {
+        await interaction.reply({ content:"🏆 Use `/motm-vote report-id:**"+reportId+"** vote-for:PlayerName` to vote for MOTM!", ephemeral:true });
+        return;
+      }
+      if (action==="review") {
+        if (!isAdmin(member)) { await interaction.reply({ content:"❌ Only Managers can view submissions.", ephemeral:true }); return; }
+        await interaction.reply({ content:"🔍 Use `/review-submissions report-id:**"+reportId+"**` to see all submissions.", ephemeral:true });
+        return;
+      }
+      return;
+    }
 
     // ── RSVP buttons ──────────────────────────────────────
     if (parts[0]==="going" || parts[0]==="maybe" || parts[0]==="cantgo") {
@@ -2455,11 +3204,363 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    // ── Submission review buttons ──────────────────────────
+    if (parts[0]==="sub") {
+      await interaction.deferUpdate();
+      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+      const action   = parts[1]; // approve | deny | proof
+      const reportId = parts[2];
+      const userId   = parts[3];
+      const subKey   = reportId + "_" + userId;
+      const sub      = selfReports.get(subKey);
+      if (!sub) { await interaction.followUp({ content:"❌ Submission not found.", ephemeral:true }); return; }
+      const statusMap = { approve:"approved", deny:"denied", proof:"needs_proof" };
+      sub.status = statusMap[action] || action;
+      sub.reviewedBy = user.tag;
+      if (sub.status === "approved") {
+        // Apply stats to player's local stats
+        addStat(sub.ign, "matches", 1);
+        if (parseInt(sub.goals))       addStat(sub.ign, "goals",       parseInt(sub.goals));
+        if (parseInt(sub.assists))     addStat(sub.ign, "assists",     parseInt(sub.assists));
+        if (parseInt(sub.saves))       addStat(sub.ign, "saves",       parseInt(sub.saves));
+        if (sub.cleanSheet?.toLowerCase()==="yes") addStat(sub.ign, "cleanSheets", 1);
+        addPoints(sub.ign, 5); // 5 pts for match participation
+      }
+      const statusEmoji = { approved:"✅", denied:"❌", needs_proof:"📎" };
+      try {
+        const targetUser = await client.users.fetch(userId).catch(()=>null);
+        if (targetUser) {
+          const msgs = {
+            approved: "✅ Your stats for **PJA vs "+sub.matchOpponent+"** have been **approved**! +5 PJA Points 🪙",
+            denied:   "❌ Your stats for **PJA vs "+sub.matchOpponent+"** were **denied**. Contact a manager for more info.",
+            needs_proof:"📎 Your stats for **PJA vs "+sub.matchOpponent+"** need **proof/clip link**. Please send it to a manager.",
+          };
+          await targetUser.send({ embeds:[pjaEmbed("📊 Stats Update", sub.status==="approved"?0x22c55e:sub.status==="denied"?0xef4444:0xf59e0b).setDescription(msgs[sub.status]||"Stats updated.")] }).catch(()=>{});
+        }
+      } catch(e) {}
+      await interaction.followUp({ content:"**"+sub.ign+"** submission → **"+sub.status+"**."+(sub.status==="approved"?" Stats applied & +5 pts.":""), ephemeral:true });
+      return;
+    }
+
+    // ── MOTM AI approve / choose different ────────────────
+    if (parts[0]==="motm" && (parts[1]==="approve"||parts[1]==="different")) {
+      await interaction.deferUpdate();
+      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+      const reportId = parts[2];
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.followUp({ content:"❌ Report not found.", ephemeral:true }); return; }
+      if (parts[1]==="approve") {
+        const aiIgn = parts[3];
+        report.motm   = aiIgn;
+        report.aiMotm = aiIgn;
+        addStat(aiIgn, "motms", 1);
+        addPoints(aiIgn, 10);
+        await interaction.followUp({ content:"🏆 **"+aiIgn+"** confirmed as MOTM! +10 PJA Points awarded 🪙", ephemeral:true });
+      } else {
+        report.motmLocked = false;
+        await interaction.followUp({ content:"🔄 You can now use `/final-report report-id:"+reportId+" motm:PlayerName` to set a different MOTM.", ephemeral:true });
+      }
+      return;
+    }
+
+    // ── Final report post / complete ──────────────────────
+    if (parts[0]==="finalrep") {
+      await interaction.deferUpdate();
+      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+      const reportId = parts[2];
+      const report   = matchReportsFull.get(reportId);
+      if (parts[1]==="post") {
+        await interaction.followUp({ content:"📢 Final report posted above for the team to see!", ephemeral:true });
+      } else if (parts[1]==="complete") {
+        if (report) report.status = "complete";
+        await interaction.followUp({ content:"✅ Match report **"+reportId+"** marked as complete.", ephemeral:true });
+      }
+      return;
+    }
+
+    // ── Remove player confirm / cancel ────────────────────
+    if (parts[0]==="removeplayer") {
+      await interaction.deferUpdate();
+      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+      const ign = decodeURIComponent(parts[2]);
+      if (parts[1]==="cancel") { await interaction.followUp({ content:"❌ Removal cancelled.", ephemeral:true }); return; }
+      // confirm — remove from API
+      const liveRoster = await apiGet("roster");
+      const player = liveRoster.find(p => (p.name||p.ign||"").toLowerCase()===ign.toLowerCase());
+      if (player && player.id) {
+        try { await fetch(WEBSITE_API+"roster/"+player.id, { method:"DELETE" }); } catch(e) {}
+      }
+      await interaction.followUp({ content:"✅ **"+ign+"** removed from the roster.", ephemeral:true });
+      return;
+    }
+
+    // ── Release confirm / cancel ───────────────────────────
+    if (parts[0]==="release") {
+      await interaction.deferUpdate();
+      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+      const ign = decodeURIComponent(parts[2]);
+      if (parts[1]==="cancel") { await interaction.followUp({ content:"❌ Release cancelled.", ephemeral:true }); return; }
+      const liveRoster = await apiGet("roster");
+      const player = liveRoster.find(p => (p.name||p.ign||"").toLowerCase()===ign.toLowerCase());
+      if (player && player.id) {
+        try { await fetch(WEBSITE_API+"roster/"+player.id, { method:"DELETE" }); } catch(e) {}
+      }
+      await interaction.followUp({ content:"✅ **"+ign+"** has been released from Project Azure.", ephemeral:true });
+      return;
+    }
+
+    // ── Restore data confirm / cancel ─────────────────────
+    if (parts[0]==="restore") {
+      await interaction.deferUpdate();
+      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+      const key = "restore_" + user.id;
+      const pending = pendingInputs.get(key);
+      if (parts[1]==="cancel") { pendingInputs.delete(key); await interaction.followUp({ content:"❌ Restore cancelled.", ephemeral:true }); return; }
+      if (!pending || pending.step !== "restore_confirm") { await interaction.followUp({ content:"❌ No pending restore found.", ephemeral:true }); return; }
+      const d = pending.data;
+      pendingInputs.delete(key);
+      // Restore in-memory stores
+      if (d.warnings)         { d.warnings.forEach(w => { playerWarnings.set(w.ign.toLowerCase(), w.warnings||[]); }); }
+      if (d.points)           { d.points.forEach(p => { playerPoints.set(p.ign.toLowerCase(), p.pts||0); }); }
+      if (d.localStats)       { d.localStats.forEach(s => { const {ign,...rest}=s; playerStats.set(ign.toLowerCase(), rest); }); }
+      if (d.newcomerProfiles) { d.newcomerProfiles.forEach(p => { const {userId,...rest}=p; newcomerProfiles.set(userId, rest); }); }
+      if (d.matchReports)     { d.matchReports.forEach(r => { const {id,...rest}=r; matchReportsFull.set(id, rest); }); }
+      if (d.openSpots)        { d.openSpots.forEach(s => { openSpots.set(s.position, {count:s.count,notes:s.notes,updatedBy:s.updatedBy}); }); }
+      await interaction.followUp({ content:"✅ In-memory data restored from backup!\n• Warnings: "+(d.warnings?.length||0)+"\n• Points: "+(d.points?.length||0)+"\n• Local stats: "+(d.localStats?.length||0)+"\n• Newcomer profiles: "+(d.newcomerProfiles?.length||0)+"\n• Match reports: "+(d.matchReports?.length||0), ephemeral:true });
+      return;
+    }
+
   } catch (err) {
     console.error("Button handler error:", err);
     try {
       if (interaction.deferred||interaction.replied) await interaction.followUp({ content:"❌ Something went wrong.", ephemeral:true });
     } catch(e) {}
+  }
+});
+
+    } catch(e) {}
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── MODAL SUBMIT HANDLER ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isModalSubmit()) return;
+  try {
+    const { customId, user, member } = interaction;
+
+    // ── Getting Started / Setup Profile ──────────────────
+    if (customId.startsWith("gs_modal_")) {
+      await interaction.deferReply({ ephemeral: true });
+      const ign        = interaction.fields.getTextInputValue("gs_ign").trim();
+      const positions  = interaction.fields.getTextInputValue("gs_position").trim();
+      const tzAvail    = interaction.fields.getTextInputValue("gs_timezone").trim();
+      const styleInfo  = interaction.fields.getTextInputValue("gs_playstyle").trim();
+      const notes      = interaction.fields.getTextInputValue("gs_notes").trim();
+
+      const [mainPos, backupPos] = positions.split("/").map(s=>s.trim());
+      const [style, priority]    = styleInfo.split("|").map(s=>s.trim());
+
+      const profile = {
+        userId:   user.id,
+        username: user.tag,
+        ign,
+        mainPos:  mainPos  || positions,
+        backupPos:backupPos || "None",
+        timezone: tzAvail,
+        playStyle:style    || styleInfo,
+        priority: priority || "Other",
+        notes,
+        submittedAt: new Date().toISOString(),
+        status: "pending",
+      };
+      newcomerProfiles.set(user.id, profile);
+      if (ign) linkAccount(user.id, ign);
+
+      await interaction.editReply({ embeds: [pjaEmbed("✅ Profile Submitted!", 0x22c55e)
+        .setDescription("Your PJA team profile has been submitted! Managers will review it shortly.\n\nMake sure you've also used `/link ign:"+ign+"` to link your account.")
+        .addFields(
+          { name:"🎮 IGN",         value:ign,                 inline:true },
+          { name:"📍 Position",    value:mainPos||positions,  inline:true },
+          { name:"🔄 Backup",      value:backupPos||"None",   inline:true },
+          { name:"🌍 TZ/Avail",    value:tzAvail,             inline:false },
+          { name:"⚡ Style",       value:style||styleInfo,    inline:true },
+          { name:"🏆 Priority",    value:priority||"Other",   inline:true },
+        )] });
+
+      // Post to managers
+      const managerEmbed = pjaEmbed("🆕 New Player Setup — " + ign, 0x2563eb)
+        .setDescription("<@"+user.id+"> just filled out their team profile!")
+        .addFields(
+          { name:"🎮 IGN",          value:ign,                inline:true },
+          { name:"📍 Main Pos",     value:mainPos||positions, inline:true },
+          { name:"🔄 Backup Pos",   value:backupPos||"None",  inline:true },
+          { name:"🌍 TZ/Avail",     value:tzAvail,            inline:false },
+          { name:"⚡ Play Style",   value:style||styleInfo,   inline:true },
+          { name:"🏆 Priority",     value:priority||"Other",  inline:true },
+          { name:"📝 Notes",        value:notes||"None",      inline:false },
+        );
+      const manRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("newp_roster_"+user.id).setLabel("✅ Add to Roster").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("newp_trialist_"+user.id).setLabel("🔬 Mark Trialist").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("newp_info_"+user.id).setLabel("❓ Needs More Info").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("newp_deny_"+user.id).setLabel("❌ Deny/Ignore").setStyle(ButtonStyle.Danger),
+      );
+      try {
+        await interaction.channel.send({ embeds:[managerEmbed], components:[manRow] });
+      } catch(e) {}
+      return;
+    }
+
+    // ── Self-Report modal ─────────────────────────────────
+    if (customId.startsWith("sr_modal_")) {
+      await interaction.deferReply({ ephemeral: true });
+      const idParts  = customId.replace("sr_modal_","").split("_");
+      const reportId = idParts[0];
+      const pos      = idParts[1] || "Utility";
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Match report not found."); return; }
+
+      const myIgn = getIgnForUser(user.id) || user.username;
+      const subKey = reportId + "_" + user.id;
+
+      // Parse fields based on position type
+      const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos.toUpperCase()]||"util";
+      const sub = {
+        reportId,
+        userId:      user.id,
+        ign:         myIgn,
+        position:    pos,
+        matchOpponent: report.opponent || "Unknown",
+        status:      "pending",
+        submittedAt: new Date().toISOString(),
+      };
+
+      const tryGet = (id) => { try { return interaction.fields.getTextInputValue(id); } catch(e) { return null; } };
+      const goalsRaw  = tryGet("sr_goals");
+      const defRaw    = tryGet("sr_def");
+      const ratRaw    = tryGet("sr_ratings");
+      const csRaw     = tryGet("sr_cleansheet");
+      const savesRaw  = tryGet("sr_saves");
+      const mistRaw   = tryGet("sr_mistakes");
+      const notesRaw  = tryGet("sr_notes");
+
+      if (posType === "gk") {
+        const [sv, bs] = (savesRaw||"").split("|").map(s=>s.trim());
+        const [cs, gc] = (csRaw||"").split("|").map(s=>s.trim());
+        const [dist, comm, posR] = (ratRaw||"").split("/").map(s=>s.trim());
+        sub.saves = sv; sub.bigSaves = bs; sub.cleanSheet = cs; sub.goalsConceded = gc;
+        sub.distributionRating = dist; sub.commRating = comm; sub.posRating = posR;
+        sub.mistakes = mistRaw;
+      } else if (posType === "def") {
+        const [ta, int, cl, bl] = (defRaw||"").split("|").map(s=>s.trim());
+        const [cs, mist] = (csRaw||"").split("|").map(s=>s.trim());
+        const [goals, assists] = (goalsRaw||"").split("|").map(s=>s.trim());
+        const [defPos, comm] = (ratRaw||"").split("/").map(s=>s.trim());
+        sub.tackles = ta; sub.interceptions = int; sub.clearances = cl; sub.blocks = bl;
+        sub.cleanSheet = cs; sub.mistakes = mist; sub.goals = goals; sub.assists = assists;
+        sub.defPosRating = defPos; sub.commRating = comm;
+      } else if (posType === "mid") {
+        const [goals, assists, kp] = (goalsRaw||"").split("|").map(s=>s.trim());
+        const [poss, pass, posR] = (ratRaw||"").split("/").map(s=>s.trim());
+        sub.goals = goals; sub.assists = assists; sub.keyPasses = kp;
+        sub.defRecoveries = defRaw;
+        sub.possessionRating = poss; sub.passingRating = pass; sub.posRating = posR;
+      } else if (posType === "wing") {
+        const [goals, assists, cc] = (goalsRaw||"").split("|").map(s=>s.trim());
+        const [crosses, sa] = (defRaw||"").split("|").map(s=>s.trim());
+        const [press, posR] = (ratRaw||"").split("/").map(s=>s.trim());
+        sub.goals = goals; sub.assists = assists; sub.chancesCreated = cc;
+        sub.crosses = crosses; sub.successfulAttacks = sa;
+        sub.pressingRating = press; sub.posRating = posR;
+      } else if (posType === "st") {
+        const [goals, assists, shots] = (goalsRaw||"").split("|").map(s=>s.trim());
+        const [fin, posR, press] = (ratRaw||"").split("/").map(s=>s.trim());
+        sub.goals = goals; sub.assists = assists; sub.shots = shots;
+        sub.chancesCreated = defRaw;
+        sub.finishingRating = fin; sub.posRating = posR; sub.pressingRating = press;
+      } else {
+        const [goals, assists] = (goalsRaw||"").split("|").map(s=>s.trim());
+        const [saves, defPlays] = (defRaw||"").split("|").map(s=>s.trim());
+        sub.goals = goals; sub.assists = assists; sub.saves = saves; sub.defPlays = defPlays;
+        sub.overallRating = ratRaw;
+      }
+      sub.notes = notesRaw;
+
+      selfReports.set(subKey, sub);
+
+      await interaction.editReply({ embeds: [pjaEmbed("✅ Self-Report Submitted!", 0x22c55e)
+        .setDescription("Your stats for **PJA vs "+report.opponent+"** have been submitted!\n\nA manager will review and approve your submission. Stats don't count until approved.")
+        .addFields(
+          { name:"📍 Position",   value:pos,                          inline:true },
+          { name:"⚽ Goals",      value:sub.goals||"N/A",             inline:true },
+          { name:"🎯 Assists",    value:sub.assists||"N/A",           inline:true },
+          { name:"🧤 Saves",      value:sub.saves||"N/A",             inline:true },
+          { name:"📝 Notes",      value:(sub.notes||"None").substring(0,100), inline:false },
+        ).setFooter({ text:"Manager review pending | Project Azure (PJA)" })] });
+
+      // Notify channel
+      try {
+        await interaction.channel.send({ embeds:[pjaEmbed("📊 New Self-Report", 0x2563eb)
+          .setDescription("**"+myIgn+"** submitted their stats for **"+reportId+"**.\nPosition: "+pos+" | Use `/review-submissions` to review.")], });
+      } catch(e) {}
+      return;
+    }
+
+  } catch (err) {
+    console.error("Modal submit error:", err);
+    try {
+      const msg = "❌ Something went wrong processing your form. Please try again.";
+      if (interaction.replied||interaction.deferred) await interaction.editReply(msg).catch(()=>{});
+      else await interaction.reply({ content:msg, ephemeral:true }).catch(()=>{});
+    } catch(e) {}
+  }
+});
+
+// ── NEWCOMER PROFILE BUTTON HANDLER ───────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith("newp_")) return;
+  try {
+    await interaction.deferUpdate();
+    const { member, user } = interaction;
+    if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+    const parts  = interaction.customId.split("_");
+    const action = parts[1];
+    const tgtId  = parts[2];
+    const profile= newcomerProfiles.get(tgtId);
+    if (!profile) { await interaction.followUp({ content:"❌ Profile not found.", ephemeral:true }); return; }
+
+    const msgMap = {
+      roster:   "✅ You've been added to the PJA roster! Welcome to **Project Azure**! 💙",
+      trialist: "🔬 You've been marked as a **Trialist** at **Project Azure**. Prove yourself!",
+      info:     "❓ Management needs more info from you. Please contact a manager directly.",
+      deny:     "Your PJA profile submission has been noted. We'll reach out if anything changes.",
+    };
+    const colorMap = { roster:0x22c55e, trialist:0x2563eb, info:0xf59e0b, deny:0xef4444 };
+    profile.managerAction  = action;
+    profile.reviewedBy     = user.tag;
+    newcomerProfiles.set(tgtId, profile);
+
+    if (action === "roster") {
+      // Auto-add to API roster
+      await apiPost("roster", {
+        name:     profile.ign, ign: profile.ign,
+        position: profile.mainPos, backup: profile.backupPos,
+        role:     "Trialist", teamMain: profile.priority,
+        timezone: profile.timezone, joinedAt: new Date().toISOString(),
+        addedBy:  user.tag,
+      }).catch(()=>{});
+    }
+    try {
+      const tgtUser = await client.users.fetch(tgtId).catch(()=>null);
+      if (tgtUser) await tgtUser.send({ embeds:[pjaEmbed("📋 PJA Profile Update", colorMap[action]||0x2563eb).setDescription(msgMap[action]||"Your profile has been reviewed.")] }).catch(()=>{});
+    } catch(e) {}
+    await interaction.followUp({ content:"**"+profile.ign+"** — action: "+action, ephemeral:true });
+  } catch(err) {
+    console.error("newp button error:", err);
+    try { await interaction.followUp({ content:"❌ Error.", ephemeral:true }); } catch(e) {}
   }
 });
 
