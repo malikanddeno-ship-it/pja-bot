@@ -55,6 +55,7 @@ const selfReports       = new Map(); // `${reportId}_${userId}` → submission
 const motmVotes         = new Map(); // `${reportId}_${userId}` → targetIgn
 const openSpots         = new Map(); // position → { count, notes }
 const playerStats       = new Map(); // ign.toLowerCase() → stats object
+const announcements     = [];        // [ { id, title, message, postedBy, postedAt, color, channelId, ping, image } ]
 
 function getStats(ign) {
   const key = ign.toLowerCase();
@@ -953,6 +954,28 @@ const commands = [
 
   new SlashCommandBuilder().setName("restore-data").setDescription("Restore bot data from JSON [Manager only]")
     .addStringOption(o => o.setName("json").setDescription("Paste the JSON data to restore").setRequired(true)),
+
+  // ── ANNOUNCEMENTS ─────────────────────────────────────────────
+  new SlashCommandBuilder().setName("announce").setDescription("Send a PJA announcement embed [Manager only]")
+    .addStringOption(o => o.setName("title").setDescription("Announcement title").setRequired(true))
+    .addStringOption(o => o.setName("message").setDescription("Announcement body text").setRequired(true))
+    .addChannelOption(o => o.setName("channel").setDescription("Channel to post in (defaults to current channel)").setRequired(false))
+    .addStringOption(o => o.setName("ping").setDescription("Who to ping above the embed").setRequired(false)
+      .addChoices(
+        { name: "None",      value: "none"      },
+        { name: "@everyone", value: "everyone"  },
+        { name: "@here",     value: "here"      },
+        { name: "@role",     value: "role"      },
+      ))
+    .addStringOption(o => o.setName("color").setDescription("Embed accent color").setRequired(false)
+      .addChoices(
+        { name: "Blue (default)", value: "blue"  },
+        { name: "Red",            value: "red"   },
+        { name: "Green",          value: "green" },
+        { name: "Gold",           value: "gold"  },
+        { name: "Gray",           value: "gray"  },
+      ))
+    .addStringOption(o => o.setName("image").setDescription("Image or link to attach (URL)").setRequired(false)),
 
 ].map(c => c.toJSON());
 
@@ -3085,6 +3108,113 @@ client.on("interactionCreate", async (interaction) => {
       pendingInputs.set("restore_"+user.id, { step:"restore_confirm", data });
       await interaction.editReply({ embeds: [pjaEmbed("⚠️ Confirm Restore", 0xef4444)
         .setDescription("This will overwrite in-memory bot data (warnings, points, local stats, newcomer profiles, match reports, open spots).\n\nAPI roster/stats/awards will **not** be overwritten by this command.\n\nAre you sure?")], components: [row] });
+      return;
+    }
+
+    // ── /announce ──────────────────────────────────────────────
+    if (commandName === "announce") {
+      await interaction.deferReply({ ephemeral: true });
+
+      if (!isAdmin(member)) {
+        await interaction.editReply("❌ This command is for Managers only.");
+        return;
+      }
+
+      const title     = interaction.options.getString("title");
+      const message   = interaction.options.getString("message");
+      const channelOpt= interaction.options.getChannel("channel") || null;
+      const pingOpt   = interaction.options.getString("ping")  || "none";
+      const colorOpt  = interaction.options.getString("color") || "blue";
+      const imageUrl  = interaction.options.getString("image") || null;
+
+      // ── Color map ────────────────────────────────────────────
+      const colorMap = {
+        blue:  0x2563eb,
+        red:   0xef4444,
+        green: 0x22c55e,
+        gold:  0xf59e0b,
+        gray:  0x64748b,
+      };
+      const embedColor = colorMap[colorOpt] || 0x2563eb;
+
+      // ── Build embed ──────────────────────────────────────────
+      const announceEmbed = new EmbedBuilder()
+        .setTitle("📢 " + title)
+        .setDescription(message)
+        .setColor(embedColor)
+        .addFields(
+          { name: "🎙️ Posted by", value: user.tag, inline: true },
+          { name: "📅 Date",      value: `<t:${Math.floor(Date.now()/1000)}:F>`, inline: true },
+        )
+        .setFooter({ text: "Project Azure (PJA) — Official Announcement" })
+        .setTimestamp();
+
+      // If image URL is provided and looks valid, set it as image
+      if (imageUrl && (imageUrl.startsWith("http://") || imageUrl.startsWith("https://"))) {
+        try { announceEmbed.setImage(imageUrl); } catch(e) {}
+      }
+
+      // ── Ping string ──────────────────────────────────────────
+      let pingStr = "";
+      if (pingOpt === "everyone")  pingStr = "@everyone";
+      else if (pingOpt === "here") pingStr = "@here";
+      else if (pingOpt === "role") {
+        // Find the first Manager/Admin role in the guild to ping
+        const mgRole = interaction.guild.roles.cache.find(r => ADMIN_ROLES.includes(r.name));
+        pingStr = mgRole ? `<@&${mgRole.id}>` : "@here";
+      }
+
+      // ── Resolve target channel ───────────────────────────────
+      const targetChannel = channelOpt || interaction.channel;
+      if (!targetChannel) {
+        await interaction.editReply("❌ Could not resolve the target channel.");
+        return;
+      }
+
+      // ── Send announcement ────────────────────────────────────
+      const sendPayload = { embeds: [announceEmbed] };
+      if (pingStr) sendPayload.content = pingStr;
+
+      let sentMsg;
+      try {
+        sentMsg = await targetChannel.send(sendPayload);
+      } catch (sendErr) {
+        await interaction.editReply("❌ Could not send to that channel: **" + (sendErr.message || "Permission denied") + "**\nMake sure the bot has permission to send messages there.");
+        return;
+      }
+
+      // ── Save to in-memory store ──────────────────────────────
+      announcements.push({
+        id:        makeId(),
+        title,
+        message,
+        postedBy:  user.tag,
+        postedAt:  new Date().toISOString(),
+        color:     colorOpt,
+        channelId: targetChannel.id,
+        ping:      pingOpt,
+        image:     imageUrl || null,
+        messageId: sentMsg.id,
+      });
+      // Keep only last 50 announcements in memory
+      if (announcements.length > 50) announcements.shift();
+
+      // ── Confirm to manager ───────────────────────────────────
+      const channelMention = channelOpt ? `<#${targetChannel.id}>` : "this channel";
+      await interaction.editReply({ embeds: [
+        new EmbedBuilder()
+          .setTitle("✅ Announcement Sent")
+          .setColor(0x22c55e)
+          .setDescription(`Your announcement was posted in ${channelMention}.`)
+          .addFields(
+            { name: "📢 Title",   value: title,              inline: true  },
+            { name: "🎨 Color",   value: colorOpt,           inline: true  },
+            { name: "🔔 Ping",    value: pingStr || "None",  inline: true  },
+            { name: "🔗 Jump",    value: `[View message](https://discord.com/channels/${interaction.guild.id}/${targetChannel.id}/${sentMsg.id})`, inline: false },
+          )
+          .setFooter({ text: "Project Azure (PJA)" })
+          .setTimestamp()
+      ] });
       return;
     }
 
