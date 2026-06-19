@@ -864,7 +864,16 @@ const commands = [
   new SlashCommandBuilder().setName("setup-profile").setDescription("Fill out your PJA team profile (same as /getting-started)"),
 
   new SlashCommandBuilder().setName("self-report").setDescription("Submit your stats for a match you played in")
-    .addStringOption(o => o.setName("report-id").setDescription("Match report ID (from manager)").setRequired(true)),
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID (from manager)").setRequired(true))
+    .addStringOption(o => o.setName("position").setDescription("Your position in this match").setRequired(true)
+      .addChoices(
+        { name: "GK — Goalkeeper",          value: "GK"      },
+        { name: "DEF — Defender (CB/LB/RB)", value: "DEF"     },
+        { name: "MID — Midfielder",          value: "MID"     },
+        { name: "WING — Winger (LW/RW)",     value: "WING"    },
+        { name: "ST — Striker/Forward",      value: "ST"      },
+        { name: "Utility / Sub",             value: "Utility" },
+      )),
 
   new SlashCommandBuilder().setName("motm-vote").setDescription("Vote for Man of the Match")
     .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true))
@@ -2354,88 +2363,211 @@ client.on("interactionCreate", async (interaction) => {
     // cause the "Something went wrong" ephemeral error message).
     if (commandName === "self-report") {
       try {
-        // Must call showModal within 3 seconds — no async work before this
-        const reportId = interaction.options.getString("report-id").toUpperCase();
+        const reportId  = interaction.options.getString("report-id").toUpperCase();
+        // Player explicitly declares their position — no more guessing from memory
+        const posChoice = interaction.options.getString("position"); // GK|DEF|MID|WING|ST|Utility
 
-        // Quick in-memory check only — no API calls
+        // Quick in-memory duplicate check — no API calls (3-sec limit)
         const subKey = reportId + "_" + user.id;
         if (selfReports.has(subKey)) {
           const ex = selfReports.get(subKey);
           if (ex.status !== "denied") {
-            await interaction.reply({ content: "⚠️ You already submitted for this match.\n**Status:** " + ex.status + "\nAsk a manager to reopen it if needed.", ephemeral: true }).catch(() => {});
+            await interaction.reply({ content: "⚠️ You already submitted for **" + reportId + "**.\n**Status:** " + ex.status + "\nAsk a manager to reopen if needed.", ephemeral: true }).catch(() => {});
             return;
           }
         }
 
-        // Determine position from in-memory report (fast) — default Utility
-        const report = matchReportsFull.get(reportId);
-        const assigned = report && report.players
-          ? report.players.find(p => p.userId === user.id || (p.ign && p.ign.toLowerCase() === (getIgnForUser(user.id)||"").toLowerCase()))
-          : null;
-        const pos = assigned ? assigned.position : "Utility";
-        const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos] || "util";
+        const posType = { GK:"gk", DEF:"def", MID:"mid", WING:"wing", ST:"st", Utility:"util" }[posChoice] || "util";
 
-        const safeOpponent = report ? (report.opponent||"Match").substring(0,15) : "Match";
-        // Title must be ≤45 chars — build it carefully
-        const modalTitle = ("Self-Report: " + pos + " vs " + safeOpponent).substring(0, 45);
+        const report = matchReportsFull.get(reportId);
+        const safeOpponent = report ? (report.opponent || "Match").substring(0, 10) : "Match";
+        // Title ≤ 45 chars
+        const modalTitle = ("📊 " + posChoice + " Stats vs " + safeOpponent).substring(0, 45);
         const modal = new ModalBuilder()
-          .setCustomId("sr_modal_" + reportId + "_" + pos)
+          .setCustomId("sr_modal_" + reportId + "_" + posChoice)
           .setTitle(modalTitle);
 
+        // ── Per-position field sets (all 5 rows, all meaningful) ──────────
         const gkFields = [
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_saves").setLabel("Saves | Big Saves").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 4 | 2")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Goals Conceded").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Distribution / Communication / Positioning").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7 / 8 / 9 (out of 10)")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_mistakes").setLabel("Mistakes Leading to Goals").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 0")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-        ];
-        const defFields = [
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Tackles | Interceptions | Clearances | Blocks").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 3 | 2 | 1 | 1")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Mistakes Led to Goal").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 1 | 0")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Def. Positioning / Communication (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-        ];
-        const midFields = [
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Key Passes").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 2 | 3")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Def. Recoveries").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Possession / Passing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 9 / 7")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-        ];
-        const wingFields = [
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Chances Created").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 1 | 3")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Crosses/Key Passes | Successful Attacks").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 2 | 4")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Pressing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-        ];
-        const stFields = [
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Shots").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 2 | 1 | 5")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Chances Created").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Finishing / Positioning / Pressing (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7 / 6")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-        ];
-        const utilFields = [
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 1")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Saves (if any) | Def. Plays (if any)").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 2")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Overall Impact (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7")),
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_saves")
+              .setLabel("Saves | Big Saves | Goals Conceded")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 5 | 2 | 1")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_cleansheet")
+              .setLabel("Clean Sheet? | Mistakes Led to Goal")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("yes or no | number  e.g. no | 1")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_ratings")
+              .setLabel("Distribution / Shot-Stopping / Comm (1-10)")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 7 / 9 / 8")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_penalties")
+              .setLabel("Penalties Saved | Penalties Faced")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 1 | 2  (leave blank if none)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_notes")
+              .setLabel("Highlights, Lowlights & Clip Link")
+              .setStyle(TextInputStyle.Paragraph).setRequired(false)
+              .setPlaceholder("Describe your performance. Paste a clip link if you have one.")),
         ];
 
-        const fieldMap = { gk:gkFields, def:defFields, mid:midFields, wing:wingFields, st:stFields, util:utilFields };
-        const fields   = fieldMap[posType] || utilFields;
+        const defFields = [
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_def")
+              .setLabel("Tackles | Interceptions | Clearances | Blocks")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 4 | 3 | 2 | 1")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_cleansheet")
+              .setLabel("Clean Sheet? | Mistakes Led to Goal")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("yes or no | number  e.g. yes | 0")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_goals")
+              .setLabel("Goals | Assists | Key Passes")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 0 | 1 | 0  (leave blank if none)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_ratings")
+              .setLabel("Def.Positioning / 1v1 / Passing / Comm (1-10)")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 8 / 7 / 7 / 8")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_notes")
+              .setLabel("Highlights, Lowlights & Clip Link")
+              .setStyle(TextInputStyle.Paragraph).setRequired(false)
+              .setPlaceholder("Key moments, aerial duels, any clip link.")),
+        ];
+
+        const midFields = [
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_goals")
+              .setLabel("Goals | Assists | Key Passes | Chances Created")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 1 | 2 | 4 | 3")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_def")
+              .setLabel("Def. Recoveries | Tackles | Interceptions")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 3 | 2 | 1")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_ratings")
+              .setLabel("Possession / Passing / Work Rate / Vision (1-10)")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 8 / 9 / 7 / 8")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_press")
+              .setLabel("Distance Covered (km) | Shots on Target")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 9.2 | 2  (leave blank if unknown)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_notes")
+              .setLabel("Highlights, Lowlights & Clip Link")
+              .setStyle(TextInputStyle.Paragraph).setRequired(false)
+              .setPlaceholder("Big passes, runs, tactical contributions. Clip link optional.")),
+        ];
+
+        const wingFields = [
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_goals")
+              .setLabel("Goals | Assists | Chances Created | Shots")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 1 | 2 | 4 | 5")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_def")
+              .setLabel("Crosses | Key Passes | Successful Dribbles")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 3 | 3 | 2")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_ratings")
+              .setLabel("Dribbling / Crossing / Pressing / Positioning (1-10)")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 8 / 7 / 8 / 7")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_press")
+              .setLabel("Def. Recoveries | Tackles Won")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 2 | 1  (leave blank if none)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_notes")
+              .setLabel("Highlights, Lowlights & Clip Link")
+              .setStyle(TextInputStyle.Paragraph).setRequired(false)
+              .setPlaceholder("Best moments, misses, clips. Anything useful for managers.")),
+        ];
+
+        const stFields = [
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_goals")
+              .setLabel("Goals | Assists | Shots | Shots on Target")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 2 | 1 | 7 | 4")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_def")
+              .setLabel("Chances Created | Key Passes | Aerial Duels Won")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 2 | 1 | 3  (leave blank if unknown)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_ratings")
+              .setLabel("Finishing / Positioning / Pressing / Hold-Up (1-10)")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 9 / 8 / 7 / 6")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_press")
+              .setLabel("Big Chances Missed | Offside Calls")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 1 | 2  (leave blank if none)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_notes")
+              .setLabel("Highlights, Lowlights & Clip Link")
+              .setStyle(TextInputStyle.Paragraph).setRequired(false)
+              .setPlaceholder("Goals scored, chances missed, clips. Be honest!")),
+        ];
+
+        const utilFields = [
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_goals")
+              .setLabel("Goals | Assists | Key Passes")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 0 | 1 | 1  (leave blank if none)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_def")
+              .setLabel("Saves | Tackles | Interceptions | Clearances")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 0 | 2 | 1 | 0  (leave blank if none)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_ratings")
+              .setLabel("Overall Impact / Effort / Attitude (1-10)")
+              .setStyle(TextInputStyle.Short).setRequired(true)
+              .setPlaceholder("e.g. 7 / 8 / 9")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_press")
+              .setLabel("Minutes Played | Position(s) Covered")
+              .setStyle(TextInputStyle.Short).setRequired(false)
+              .setPlaceholder("e.g. 45 | ST,MID  (leave blank if unknown)")),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId("sr_notes")
+              .setLabel("Highlights, Contributions & Clip Link")
+              .setStyle(TextInputStyle.Paragraph).setRequired(false)
+              .setPlaceholder("Describe your impact as a sub or utility player. Clip link optional.")),
+        ];
+
+        const fieldMap = { gk: gkFields, def: defFields, mid: midFields, wing: wingFields, st: stFields, util: utilFields };
+        const fields = fieldMap[posType] || utilFields;
         fields.forEach(f => modal.addComponents(f));
 
-        // showModal() MUST be the last thing called — it consumes the interaction token.
-        // Nothing after this line should attempt reply/deferReply/editReply.
+        // showModal() consumes the interaction — must be last, no reply after this
         await interaction.showModal(modal);
       } catch (srErr) {
         console.error("[/self-report] showModal error:", srErr.message, srErr.stack);
-        // Only attempt a reply if showModal hasn't already responded
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: "❌ Could not open the stat form. Error: " + (srErr.message || "unknown"), ephemeral: true }).catch(e => console.error("[/self-report] fallback reply failed:", e.message));
+          await interaction.reply({ content: "❌ Could not open the stat form: " + (srErr.message || "unknown error"), ephemeral: true }).catch(() => {});
         }
       }
-      // Always return here — NEVER fall through to the outer try/catch
       return;
     }
 
@@ -3447,111 +3579,207 @@ client.on("interactionCreate", async (interaction) => {
     // ── Self-Report modal ─────────────────────────────────
     if (customId.startsWith("sr_modal_")) {
       await interaction.deferReply({ ephemeral: true });
-      const idParts  = customId.replace("sr_modal_","").split("_");
-      const reportId = idParts[0];
-      const pos      = idParts[1] || "Utility";
+      // customId = "sr_modal_REPORTID_POSITION"
+      const withoutPrefix = customId.replace("sr_modal_", "");
+      const underscoreIdx = withoutPrefix.indexOf("_");
+      const reportId = underscoreIdx >= 0 ? withoutPrefix.substring(0, underscoreIdx) : withoutPrefix;
+      const pos      = underscoreIdx >= 0 ? withoutPrefix.substring(underscoreIdx + 1) : "Utility";
 
-      // Lookup report — API fallback is fine here, no time limit in modal submit
+      // API fallback is fine here — no 3-sec limit on modal submits
       let report = matchReportsFull.get(reportId);
       if (!report) {
-        const apiReports = await apiGet("match_reports").catch(()=>[]);
-        const apiReport  = apiReports.find(r => (r.id||"").toUpperCase() === reportId);
+        const apiReports = await apiGet("match_reports").catch(() => []);
+        const apiReport  = apiReports.find(r => (r.id || "").toUpperCase() === reportId);
         if (apiReport) {
           report = { ...apiReport, players: [], motmLocked: false, finalized: false };
           matchReportsFull.set(reportId, report);
         } else {
-          // Stub — submission still saves even if report not found
           report = { id: reportId, opponent: "Unknown", score: "?", result: "?", date: new Date().toDateString(), players: [], motmLocked: false, finalized: false };
           matchReportsFull.set(reportId, report);
         }
       }
 
-      const myIgn = getIgnForUser(user.id) || user.username;
+      const myIgn  = getIgnForUser(user.id) || user.username;
       const subKey = reportId + "_" + user.id;
+      const posType = { GK:"gk", DEF:"def", MID:"mid", WING:"wing", ST:"st", Utility:"util" }[pos] || "util";
 
-      // Parse fields based on position type
-      const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos.toUpperCase()]||"util";
-      const sub = {
-        reportId,
-        userId:      user.id,
-        ign:         myIgn,
-        position:    pos,
-        matchOpponent: report.opponent || "Unknown",
-        status:      "pending",
-        submittedAt: new Date().toISOString(),
-      };
+      // ── Safe field getter ──────────────────────────────────
+      const tryGet  = (id) => { try { return interaction.fields.getTextInputValue(id) || ""; } catch(e) { return ""; } };
+      const safeVal = (v)  => (v && String(v).trim()) ? String(v).trim() : "—";
+      const split   = (raw, sep) => (raw || "").split(sep).map(s => s.trim());
 
-      const tryGet = (id) => { try { return interaction.fields.getTextInputValue(id); } catch(e) { return null; } };
       const goalsRaw  = tryGet("sr_goals");
       const defRaw    = tryGet("sr_def");
       const ratRaw    = tryGet("sr_ratings");
       const csRaw     = tryGet("sr_cleansheet");
       const savesRaw  = tryGet("sr_saves");
-      const mistRaw   = tryGet("sr_mistakes");
+      const pressRaw  = tryGet("sr_press");
+      const penRaw    = tryGet("sr_penalties");
       const notesRaw  = tryGet("sr_notes");
 
-      if (posType === "gk") {
-        const [sv, bs] = (savesRaw||"").split("|").map(s=>s.trim());
-        const [cs, gc] = (csRaw||"").split("|").map(s=>s.trim());
-        const [dist, comm, posR] = (ratRaw||"").split("/").map(s=>s.trim());
-        sub.saves = sv; sub.bigSaves = bs; sub.cleanSheet = cs; sub.goalsConceded = gc;
-        sub.distributionRating = dist; sub.commRating = comm; sub.posRating = posR;
-        sub.mistakes = mistRaw;
-      } else if (posType === "def") {
-        const [ta, int, cl, bl] = (defRaw||"").split("|").map(s=>s.trim());
-        const [cs, mist] = (csRaw||"").split("|").map(s=>s.trim());
-        const [goals, assists] = (goalsRaw||"").split("|").map(s=>s.trim());
-        const [defPos, comm] = (ratRaw||"").split("/").map(s=>s.trim());
-        sub.tackles = ta; sub.interceptions = int; sub.clearances = cl; sub.blocks = bl;
-        sub.cleanSheet = cs; sub.mistakes = mist; sub.goals = goals; sub.assists = assists;
-        sub.defPosRating = defPos; sub.commRating = comm;
-      } else if (posType === "mid") {
-        const [goals, assists, kp] = (goalsRaw||"").split("|").map(s=>s.trim());
-        const [poss, pass, posR] = (ratRaw||"").split("/").map(s=>s.trim());
-        sub.goals = goals; sub.assists = assists; sub.keyPasses = kp;
-        sub.defRecoveries = defRaw;
-        sub.possessionRating = poss; sub.passingRating = pass; sub.posRating = posR;
-      } else if (posType === "wing") {
-        const [goals, assists, cc] = (goalsRaw||"").split("|").map(s=>s.trim());
-        const [crosses, sa] = (defRaw||"").split("|").map(s=>s.trim());
-        const [press, posR] = (ratRaw||"").split("/").map(s=>s.trim());
-        sub.goals = goals; sub.assists = assists; sub.chancesCreated = cc;
-        sub.crosses = crosses; sub.successfulAttacks = sa;
-        sub.pressingRating = press; sub.posRating = posR;
-      } else if (posType === "st") {
-        const [goals, assists, shots] = (goalsRaw||"").split("|").map(s=>s.trim());
-        const [fin, posR, press] = (ratRaw||"").split("/").map(s=>s.trim());
-        sub.goals = goals; sub.assists = assists; sub.shots = shots;
-        sub.chancesCreated = defRaw;
-        sub.finishingRating = fin; sub.posRating = posR; sub.pressingRating = press;
-      } else {
-        const [goals, assists] = (goalsRaw||"").split("|").map(s=>s.trim());
-        const [saves, defPlays] = (defRaw||"").split("|").map(s=>s.trim());
-        sub.goals = goals; sub.assists = assists; sub.saves = saves; sub.defPlays = defPlays;
-        sub.overallRating = ratRaw;
-      }
-      sub.notes = notesRaw;
+      // ── Build base sub object ──────────────────────────────
+      const sub = {
+        reportId,
+        userId:        user.id,
+        ign:           myIgn,
+        position:      pos,
+        matchOpponent: report.opponent || "Unknown",
+        status:        "pending",
+        submittedAt:   new Date().toISOString(),
+      };
 
+      // ── Parse per-position ─────────────────────────────────
+      let embedFields = [];
+
+      if (posType === "gk") {
+        const [sv, bs, gc]    = split(savesRaw, "|");
+        const [cs, mist]      = split(csRaw, "|");
+        const [dist, stop, comm] = split(ratRaw, "/");
+        const [penSv, penFa]  = split(penRaw, "|");
+        Object.assign(sub, { saves:sv, bigSaves:bs, goalsConceded:gc, cleanSheet:cs, mistakes:mist,
+          distributionRating:dist, shotStoppingRating:stop, commRating:comm,
+          penaltiesSaved:penSv, penaltiesFaced:penFa, notes:notesRaw });
+        embedFields = [
+          { name:"🧤 Saves",              value: safeVal(sv),   inline:true },
+          { name:"💥 Big Saves",          value: safeVal(bs),   inline:true },
+          { name:"🥅 Goals Conceded",     value: safeVal(gc),   inline:true },
+          { name:"🛡️ Clean Sheet",        value: safeVal(cs),   inline:true },
+          { name:"❌ Mistakes→Goal",       value: safeVal(mist), inline:true },
+          { name:"🏅 Pens Saved/Faced",   value: safeVal(penSv) + " / " + safeVal(penFa), inline:true },
+          { name:"⭐ Ratings (Dist/Stop/Comm)", value: safeVal(dist)+"/"+safeVal(stop)+"/"+safeVal(comm), inline:false },
+          { name:"📝 Notes",              value: safeVal(notesRaw).substring(0, 200), inline:false },
+        ];
+      } else if (posType === "def") {
+        const [ta, int, cl, bl]     = split(defRaw, "|");
+        const [cs, mist]            = split(csRaw, "|");
+        const [goals, assists, kp]  = split(goalsRaw, "|");
+        const [defPos, ov1, pass, comm] = split(ratRaw, "/");
+        Object.assign(sub, { tackles:ta, interceptions:int, clearances:cl, blocks:bl,
+          cleanSheet:cs, mistakes:mist, goals, assists, keyPasses:kp,
+          defPosRating:defPos, oneVoneRating:ov1, passingRating:pass, commRating:comm, notes:notesRaw });
+        embedFields = [
+          { name:"💪 Tackles",           value: safeVal(ta),    inline:true },
+          { name:"✂️ Interceptions",     value: safeVal(int),   inline:true },
+          { name:"🧹 Clearances",        value: safeVal(cl),    inline:true },
+          { name:"🛑 Blocks",            value: safeVal(bl),    inline:true },
+          { name:"🛡️ Clean Sheet",       value: safeVal(cs),    inline:true },
+          { name:"❌ Mistakes→Goal",      value: safeVal(mist),  inline:true },
+          { name:"⚽ Goals | Assists | KP", value: safeVal(goals)+"|"+safeVal(assists)+"|"+safeVal(kp), inline:true },
+          { name:"⭐ Ratings (Pos/1v1/Pass/Comm)", value: safeVal(defPos)+"/"+safeVal(ov1)+"/"+safeVal(pass)+"/"+safeVal(comm), inline:false },
+          { name:"📝 Notes",             value: safeVal(notesRaw).substring(0, 200), inline:false },
+        ];
+      } else if (posType === "mid") {
+        const [goals, assists, kp, cc] = split(goalsRaw, "|");
+        const [rec, tac, int]          = split(defRaw, "|");
+        const [poss, pass, wr, vis]    = split(ratRaw, "/");
+        const [dist, sot]              = split(pressRaw, "|");
+        Object.assign(sub, { goals, assists, keyPasses:kp, chancesCreated:cc,
+          defRecoveries:rec, tackles:tac, interceptions:int,
+          possessionRating:poss, passingRating:pass, workRateRating:wr, visionRating:vis,
+          distanceCovered:dist, shotsOnTarget:sot, notes:notesRaw });
+        embedFields = [
+          { name:"⚽ Goals",             value: safeVal(goals),   inline:true },
+          { name:"🎯 Assists",           value: safeVal(assists), inline:true },
+          { name:"🔑 Key Passes",        value: safeVal(kp),      inline:true },
+          { name:"💡 Chances Created",   value: safeVal(cc),      inline:true },
+          { name:"🔄 Def. Recoveries",   value: safeVal(rec),     inline:true },
+          { name:"📏 Distance (km)",     value: safeVal(dist),    inline:true },
+          { name:"🎯 Shots on Target",   value: safeVal(sot),     inline:true },
+          { name:"⭐ Ratings (Poss/Pass/WR/Vision)", value: safeVal(poss)+"/"+safeVal(pass)+"/"+safeVal(wr)+"/"+safeVal(vis), inline:false },
+          { name:"📝 Notes",             value: safeVal(notesRaw).substring(0, 200), inline:false },
+        ];
+      } else if (posType === "wing") {
+        const [goals, assists, cc, shots] = split(goalsRaw, "|");
+        const [crosses, kp, dribbles]     = split(defRaw, "|");
+        const [drib, cross, press, posR]  = split(ratRaw, "/");
+        const [rec, tac]                  = split(pressRaw, "|");
+        Object.assign(sub, { goals, assists, chancesCreated:cc, shots,
+          crosses, keyPasses:kp, successfulDribbles:dribbles,
+          dribblingRating:drib, crossingRating:cross, pressingRating:press, posRating:posR,
+          defRecoveries:rec, tackles:tac, notes:notesRaw });
+        embedFields = [
+          { name:"⚽ Goals",             value: safeVal(goals),   inline:true },
+          { name:"🎯 Assists",           value: safeVal(assists), inline:true },
+          { name:"💡 Chances Created",   value: safeVal(cc),      inline:true },
+          { name:"🎯 Shots",             value: safeVal(shots),   inline:true },
+          { name:"🌐 Crosses",           value: safeVal(crosses), inline:true },
+          { name:"🔑 Key Passes",        value: safeVal(kp),      inline:true },
+          { name:"🏃 Dribbles Won",      value: safeVal(dribbles),inline:true },
+          { name:"⭐ Ratings (Drib/Cross/Press/Pos)", value: safeVal(drib)+"/"+safeVal(cross)+"/"+safeVal(press)+"/"+safeVal(posR), inline:false },
+          { name:"📝 Notes",             value: safeVal(notesRaw).substring(0, 200), inline:false },
+        ];
+      } else if (posType === "st") {
+        const [goals, assists, shots, sot] = split(goalsRaw, "|");
+        const [cc, kp, aerials]            = split(defRaw, "|");
+        const [fin, posR, press, holdup]   = split(ratRaw, "/");
+        const [missed, offsides]           = split(pressRaw, "|");
+        Object.assign(sub, { goals, assists, shots, shotsOnTarget:sot,
+          chancesCreated:cc, keyPasses:kp, aerialDuelsWon:aerials,
+          finishingRating:fin, posRating:posR, pressingRating:press, holdUpRating:holdup,
+          bigChancesMissed:missed, offsides, notes:notesRaw });
+        embedFields = [
+          { name:"⚽ Goals",             value: safeVal(goals),   inline:true },
+          { name:"🎯 Assists",           value: safeVal(assists), inline:true },
+          { name:"🎯 Shots",             value: safeVal(shots),   inline:true },
+          { name:"🎯 Shots on Target",   value: safeVal(sot),     inline:true },
+          { name:"💡 Chances Created",   value: safeVal(cc),      inline:true },
+          { name:"✈️ Aerials Won",       value: safeVal(aerials), inline:true },
+          { name:"😬 Big Chances Missed",value: safeVal(missed),  inline:true },
+          { name:"🚩 Offsides",          value: safeVal(offsides),inline:true },
+          { name:"⭐ Ratings (Fin/Pos/Press/Hold-Up)", value: safeVal(fin)+"/"+safeVal(posR)+"/"+safeVal(press)+"/"+safeVal(holdup), inline:false },
+          { name:"📝 Notes",             value: safeVal(notesRaw).substring(0, 200), inline:false },
+        ];
+      } else {
+        // Utility / Sub
+        const [goals, assists, kp]    = split(goalsRaw, "|");
+        const [saves, tac, int, cl]   = split(defRaw, "|");
+        const [impact, effort, att]   = split(ratRaw, "/");
+        const [mins, coveredPos]      = split(pressRaw, "|");
+        Object.assign(sub, { goals, assists, keyPasses:kp,
+          saves, tackles:tac, interceptions:int, clearances:cl,
+          impactRating:impact, effortRating:effort, attitudeRating:att,
+          minutesPlayed:mins, positionsCovered:coveredPos, notes:notesRaw });
+        embedFields = [
+          { name:"⚽ Goals | Assists | KP", value: safeVal(goals)+"|"+safeVal(assists)+"|"+safeVal(kp), inline:false },
+          { name:"🧤 Saves",               value: safeVal(saves),     inline:true },
+          { name:"💪 Tackles",             value: safeVal(tac),       inline:true },
+          { name:"✂️ Interceptions",       value: safeVal(int),       inline:true },
+          { name:"⏱️ Minutes Played",      value: safeVal(mins),      inline:true },
+          { name:"🔀 Pos. Covered",        value: safeVal(coveredPos),inline:true },
+          { name:"⭐ Ratings (Impact/Effort/Attitude)", value: safeVal(impact)+"/"+safeVal(effort)+"/"+safeVal(att), inline:false },
+          { name:"📝 Notes",               value: safeVal(notesRaw).substring(0, 200), inline:false },
+        ];
+      }
+
+      sub.notes = notesRaw;
       selfReports.set(subKey, sub);
 
-      // Safe field values — Discord rejects empty/undefined embed field values
-      const safeVal = (v) => (v && String(v).trim()) ? String(v).trim() : "—";
+      // Trim embed fields to 10 max (Discord limit is 25 but keep it clean)
+      const displayFields = embedFields.slice(0, 10);
 
-      await interaction.editReply({ embeds: [pjaEmbed("✅ Self-Report Submitted!", 0x22c55e)
-        .setDescription("Your stats for **PJA vs " + report.opponent + "** have been submitted!\n\nA manager will review and approve your submission. Stats don't count until approved.")
-        .addFields(
-          { name:"📍 Position", value: safeVal(pos),          inline: true },
-          { name:"⚽ Goals",    value: safeVal(sub.goals),    inline: true },
-          { name:"🎯 Assists",  value: safeVal(sub.assists),  inline: true },
-          { name:"🧤 Saves",    value: safeVal(sub.saves),    inline: true },
-          { name:"📝 Notes",    value: safeVal(sub.notes).substring(0, 100), inline: false },
-        ).setFooter({ text: "Manager review pending | Project Azure (PJA)" })] });
+      const posEmoji = { GK:"🧤", DEF:"🛡️", MID:"🔁", WING:"🏃", ST:"⚽", Utility:"🔄" }[pos] || "📍";
 
-      // Notify channel (safe — ignore if no channel access)
+      await interaction.editReply({ embeds: [
+        pjaEmbed("✅ " + posEmoji + " Self-Report Submitted — " + pos, 0x22c55e)
+          .setDescription(
+            "**" + myIgn + "** — PJA vs **" + (report.opponent || "Unknown") + "**\n" +
+            "Report ID: `" + reportId + "` | Match Date: " + (report.date || "Unknown") + "\n\n" +
+            "⏳ A manager will review and approve before stats count."
+          )
+          .addFields(...displayFields)
+          .setFooter({ text: "Status: Pending Review | Project Azure (PJA)" })
+      ] });
+
+      // Channel notification
       try {
         if (interaction.channel) {
-          await interaction.channel.send({ embeds: [pjaEmbed("📊 New Self-Report", 0x2563eb)
-            .setDescription("**" + myIgn + "** submitted stats for report **" + reportId + "**.\nPosition: " + pos + " | Use `/review-submissions report-id:" + reportId + "` to review.")] });
+          await interaction.channel.send({ embeds: [
+            pjaEmbed("📊 New Self-Report — " + posEmoji + " " + pos, 0x2563eb)
+              .setDescription(
+                "<@" + user.id + "> (**" + myIgn + "**) submitted stats for **" + reportId + "** as **" + pos + "**.\n" +
+                "Use `/review-submissions report-id:" + reportId + "` to review all submissions."
+              )
+          ] });
         }
       } catch(e) {}
       return;
