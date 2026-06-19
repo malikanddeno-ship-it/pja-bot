@@ -2322,94 +2322,120 @@ client.on("interactionCreate", async (interaction) => {
     // ════════════════════════════════════════════════════════
 
     // ── /getting-started & /setup-profile ─────────────────
+    // ISOLATED try/catch — showModal consumes the interaction token.
     if (commandName === "getting-started" || commandName === "setup-profile") {
-      const modal = new ModalBuilder()
-        .setCustomId("gs_modal_" + user.id)
-        .setTitle("PJA — Team Profile Setup");
-      const rows = [
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_ign").setLabel("VRFS Username").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("Your in-game name")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_position").setLabel("Main Position / Backup Position").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. ST / LW")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_timezone").setLabel("Timezone & Availability").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. GMT — evenings & weekends")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_playstyle").setLabel("Play Style & Priority").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. Aggressive | 1st Main")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_notes").setLabel("Strengths, Weaknesses & Notes").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Tell managers anything useful. Clip link optional.")),
-      ];
-      rows.forEach(r => modal.addComponents(r));
-      await interaction.showModal(modal);
+      try {
+        const modal = new ModalBuilder()
+          .setCustomId("gs_modal_" + user.id)
+          .setTitle("PJA — Team Profile Setup");
+        const rows = [
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_ign").setLabel("VRFS Username").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("Your in-game name")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_position").setLabel("Main Position / Backup Position").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. ST / LW")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_timezone").setLabel("Timezone & Availability").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. GMT — evenings & weekends")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_playstyle").setLabel("Play Style & Priority").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. Aggressive | 1st Main")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("gs_notes").setLabel("Strengths, Weaknesses & Notes").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Tell managers anything useful. Clip link optional.")),
+        ];
+        rows.forEach(r => modal.addComponents(r));
+        await interaction.showModal(modal);
+      } catch (gsErr) {
+        console.error("[/getting-started] showModal error:", gsErr.message);
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: "❌ Could not open the profile form. Please try again.", ephemeral: true }).catch(() => {});
+        }
+      }
+      // Always return — never fall through to outer catch
       return;
     }
 
     // ── /self-report ───────────────────────────────────────
+    // ISOLATED try/catch — showModal consumes the interaction token.
+    // If anything goes wrong here we MUST NOT let the outer catch
+    // attempt interaction.reply() again (that would double-reply and
+    // cause the "Something went wrong" ephemeral error message).
     if (commandName === "self-report") {
-      // Must call showModal within 3 seconds — no async work before this
-      const reportId = interaction.options.getString("report-id").toUpperCase();
+      try {
+        // Must call showModal within 3 seconds — no async work before this
+        const reportId = interaction.options.getString("report-id").toUpperCase();
 
-      // Quick in-memory check only — no API calls
-      const subKey = reportId + "_" + user.id;
-      if (selfReports.has(subKey)) {
-        const ex = selfReports.get(subKey);
-        if (ex.status !== "denied") {
-          await interaction.reply({ content: "⚠️ You already submitted for this match.\n**Status:** " + ex.status + "\nAsk a manager to reopen it if needed.", ephemeral: true });
-          return;
+        // Quick in-memory check only — no API calls
+        const subKey = reportId + "_" + user.id;
+        if (selfReports.has(subKey)) {
+          const ex = selfReports.get(subKey);
+          if (ex.status !== "denied") {
+            await interaction.reply({ content: "⚠️ You already submitted for this match.\n**Status:** " + ex.status + "\nAsk a manager to reopen it if needed.", ephemeral: true }).catch(() => {});
+            return;
+          }
+        }
+
+        // Determine position from in-memory report (fast) — default Utility
+        const report = matchReportsFull.get(reportId);
+        const assigned = report && report.players
+          ? report.players.find(p => p.userId === user.id || (p.ign && p.ign.toLowerCase() === (getIgnForUser(user.id)||"").toLowerCase()))
+          : null;
+        const pos = assigned ? assigned.position : "Utility";
+        const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos] || "util";
+
+        const safeOpponent = report ? (report.opponent||"Match").substring(0,15) : "Match";
+        // Title must be ≤45 chars — build it carefully
+        const modalTitle = ("Self-Report: " + pos + " vs " + safeOpponent).substring(0, 45);
+        const modal = new ModalBuilder()
+          .setCustomId("sr_modal_" + reportId + "_" + pos)
+          .setTitle(modalTitle);
+
+        const gkFields = [
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_saves").setLabel("Saves | Big Saves").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 4 | 2")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Goals Conceded").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Distribution / Communication / Positioning").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7 / 8 / 9 (out of 10)")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_mistakes").setLabel("Mistakes Leading to Goals").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 0")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+        ];
+        const defFields = [
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Tackles | Interceptions | Clearances | Blocks").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 3 | 2 | 1 | 1")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Mistakes Led to Goal").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 1 | 0")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Def. Positioning / Communication (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+        ];
+        const midFields = [
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Key Passes").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 2 | 3")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Def. Recoveries").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Possession / Passing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 9 / 7")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+        ];
+        const wingFields = [
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Chances Created").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 1 | 3")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Crosses/Key Passes | Successful Attacks").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 2 | 4")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Pressing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+        ];
+        const stFields = [
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Shots").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 2 | 1 | 5")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Chances Created").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Finishing / Positioning / Pressing (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7 / 6")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+        ];
+        const utilFields = [
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 1")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Saves (if any) | Def. Plays (if any)").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 2")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Overall Impact (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7")),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
+        ];
+
+        const fieldMap = { gk:gkFields, def:defFields, mid:midFields, wing:wingFields, st:stFields, util:utilFields };
+        const fields   = fieldMap[posType] || utilFields;
+        fields.forEach(f => modal.addComponents(f));
+
+        // showModal() MUST be the last thing called — it consumes the interaction token.
+        // Nothing after this line should attempt reply/deferReply/editReply.
+        await interaction.showModal(modal);
+      } catch (srErr) {
+        console.error("[/self-report] showModal error:", srErr.message, srErr.stack);
+        // Only attempt a reply if showModal hasn't already responded
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: "❌ Could not open the stat form. Error: " + (srErr.message || "unknown"), ephemeral: true }).catch(e => console.error("[/self-report] fallback reply failed:", e.message));
         }
       }
-
-      // Determine position from in-memory report (fast) — default Utility
-      const report = matchReportsFull.get(reportId);
-      const assigned = report && report.players
-        ? report.players.find(p => p.userId === user.id || (p.ign && p.ign.toLowerCase() === (getIgnForUser(user.id)||"").toLowerCase()))
-        : null;
-      const pos = assigned ? assigned.position : "Utility";
-      const posType = {GK:"gk",CB:"def",LB:"def",RB:"def",CM:"mid",CDM:"mid",CAM:"mid",LW:"wing",RW:"wing",ST:"st"}[pos] || "util";
-
-      const safeOpponent = report ? (report.opponent||"Match").substring(0,20) : "Match";
-      const modal = new ModalBuilder()
-        .setCustomId("sr_modal_" + reportId + "_" + pos)
-        .setTitle(("Self-Report: " + pos + " vs " + safeOpponent).substring(0,45));
-
-      const gkFields = [
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_saves").setLabel("Saves | Big Saves").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 4 | 2")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Goals Conceded").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Distribution / Communication / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7 / 8 / 9")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_mistakes").setLabel("Mistakes Leading to Goals").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 0")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-      ];
-      const defFields = [
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Tackles | Interceptions | Clearances | Blocks").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 3 | 2 | 1 | 1")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_cleansheet").setLabel("Clean Sheet? (yes/no) | Mistakes Led to Goal").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. yes | 0")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 1 | 0")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Def. Positioning / Communication (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-      ];
-      const midFields = [
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Key Passes").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 2 | 3")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Def. Recoveries").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Possession / Passing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 9 / 7")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-      ];
-      const wingFields = [
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Chances Created").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 1 | 1 | 3")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Crosses/Key Passes | Successful Attacks").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 2 | 4")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Pressing / Positioning (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-      ];
-      const stFields = [
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists | Shots").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 2 | 1 | 5")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Chances Created").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("Number, e.g. 2")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Finishing / Positioning / Pressing (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 8 / 7 / 6")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-      ];
-      const utilFields = [
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_goals").setLabel("Goals | Assists").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 1")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_def").setLabel("Saves (if any) | Def. Plays (if any)").setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("e.g. 0 | 2")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_ratings").setLabel("Overall Impact (1-10)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 7")),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("sr_notes").setLabel("Notes & Clip/Proof Link (optional)").setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder("Any extra notes or clip link")),
-      ];
-
-      const fieldMap = { gk:gkFields, def:defFields, mid:midFields, wing:wingFields, st:stFields, util:utilFields };
-      const fields   = fieldMap[posType] || utilFields;
-      // Modals support max 5 rows; trim if util only has 4
-      fields.forEach(f => modal.addComponents(f));
-      await interaction.showModal(modal);
+      // Always return here — NEVER fall through to the outer try/catch
       return;
     }
 
