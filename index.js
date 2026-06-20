@@ -110,14 +110,98 @@ async function getMemberByIgn(guild, ign) {
 
 // ── SHOP ITEMS ────────────────────────────────────────────────
 // Shop item prices are mutable at runtime via /shop-price
+// autoFulfil=true  → runs instantly; false → manager approval needed
 const SHOP_ITEMS = [
-  { id: "nickname_color", name: "Custom Nickname Colour",         cost: 50,  desc: "Get a custom coloured role that changes your nickname colour in the server." },
-  { id: "profile_badge",  name: "Profile Badge",                  cost: 75,  desc: "Get a fully custom role — you choose the name AND the colour." },
-  { id: "shoutout",       name: "Team Shoutout",                  cost: 30,  desc: "Get a personal shoutout posted in the announcements channel." },
-  { id: "featured_card",  name: "Featured Player Card",           cost: 100, desc: "Get featured as Player of the Week with a special card in announcements." },
-  { id: "clip_feature",   name: "Clip Featured in Announcements", cost: 80,  desc: "Submit a clip to be featured in the team's announcements channel." },
-  { id: "custom_title",   name: "Custom Title",                   cost: 60,  desc: "Get a custom titled role — you choose the title AND the colour." },
+  // ── APPROVAL ITEMS ───────────────────────────────────────────
+  { id: "rename_bot",        name: "Rename the Bot for 24h",            cost: 200, autoFulfil: false, desc: "Rename the PJA bot to any name for 24 hours. Manager approves." },
+  { id: "server_emoji",      name: "Server Emoji Request",              cost: 200, autoFulfil: false, desc: "Request a custom emoji to be added to the server. Manager approves." },
+  { id: "custom_command",    name: "Custom Command Reply",              cost: 200, autoFulfil: false, desc: "Add a custom !trigger → reply command to the bot. Manager approves." },
+  { id: "rename_giveaway",   name: "Rename a Giveaway",                cost: 150, autoFulfil: false, desc: "Rename an active giveaway to something you choose. Manager approves." },
+  { id: "server_poll",       name: "Server Poll Override",              cost: 200, autoFulfil: false, desc: "Force a server poll on any topic of your choice. Manager approves." },
+  { id: "lucky_number",      name: "Lucky Number Claim",                cost: 150, autoFulfil: false, desc: "Claim a lucky number (1–100). If it's drawn in a giveaway, you win. Manager approves." },
+  // ── AUTO ITEMS ───────────────────────────────────────────────
+  { id: "point_steal",       name: "Point Steal Ticket",                cost: 150, autoFulfil: true,  desc: "50/50 chance to steal 25 pts from a target player. Auto-executes." },
+  { id: "point_gamble",      name: "Point Gamble Ticket",               cost: 75,  autoFulfil: true,  desc: "Gamble 10–200 pts: double or lose. You choose the amount. Auto-executes." },
+  { id: "mystery_spin",      name: "Mystery Spin Wheel",                cost: 100, autoFulfil: true,  desc: "Spin the wheel for a random reward (points, discount, or nothing). Auto-executes." },
+  { id: "shop_discount",     name: "Temporary Shop Discount",           cost: 200, autoFulfil: true,  desc: "Earn a 25% discount token valid on your next shop redemption. Auto-executes." },
 ];
+
+// ── EXTRA DATA STORES FOR NEW FEATURES ───────────────────────
+const pointHistory      = new Map(); // ign.toLowerCase() → [{ amount, reason, date }]
+const discountTokens    = new Map(); // ign.toLowerCase() → { pct, expiresAt }
+const luckyNumbers      = new Map(); // ign.toLowerCase() → number (1–100)
+const customCommandsMap = new Map(); // trigger.toLowerCase() → { reply, createdBy, ign }
+const shopRequests      = new Map(); // requestId → { userId, ign, itemId, itemName, note, status, reviewedBy, createdAt }
+const motmVoteLocks     = new Map(); // reportId → boolean (locked=true)
+const submissionHistory = new Map(); // subKey → [{ event, by, reason, stats, timestamp }]
+
+function addPointHistory(ign, amount, reason) {
+  const key = ign.toLowerCase();
+  if (!pointHistory.has(key)) pointHistory.set(key, []);
+  pointHistory.get(key).push({ amount, reason, date: new Date().toISOString() });
+  if (pointHistory.get(key).length > 50) pointHistory.get(key).shift();
+}
+
+function addSubHistory(subKey, event, by, reason, stats) {
+  if (!submissionHistory.has(subKey)) submissionHistory.set(subKey, []);
+  submissionHistory.get(subKey).push({ event, by, reason: reason||"", stats: stats||null, timestamp: new Date().toISOString() });
+}
+
+// ── POINT AWARD FORMULA (on submission approval) ──────────────
+function calcSubmissionPoints(sub) {
+  let pts = 0;
+  const posType = {
+    GK:"gk", DEF:"def", MID:"mid", WING:"wing", ST:"st", Utility:"util",
+    LM:"mid", RM:"mid", CM:"mid", CDM:"mid", CAM:"mid", CB:"def", LB:"def", RB:"def", LW:"wing", RW:"wing",
+  }[sub.position||"Utility"] || "util";
+
+  // Match participation always
+  pts += 10;
+
+  // Goals
+  const goals = parseInt(sub.goals)||0;
+  if (goals > 0) pts += goals * 5;
+
+  // Assists
+  const assists = parseInt(sub.assists)||0;
+  if (assists > 0) pts += assists * 4;
+
+  // Saves (GK)
+  const saves = parseInt(sub.saves)||0;
+  if (saves > 0 && posType === "gk") pts += saves * 3;
+
+  // Clean sheet
+  if (sub.cleanSheet && sub.cleanSheet.toString().toLowerCase().startsWith("y")) pts += 8;
+
+  // Big saves
+  const bigSaves = parseInt(sub.bigSaves)||0;
+  if (bigSaves > 0) pts += bigSaves * 4;
+
+  // Key passes
+  const kp = parseInt(sub.keyPasses)||0;
+  if (kp > 0) pts += kp * 2;
+
+  // Tackles
+  const tackles = parseInt(sub.tackles)||0;
+  if (tackles > 0) pts += tackles * 2;
+
+  // Interceptions
+  const ints = parseInt(sub.interceptions)||0;
+  if (ints > 0) pts += ints * 2;
+
+  // Blocks
+  const blocks = parseInt(sub.blocks)||0;
+  if (blocks > 0) pts += blocks * 2;
+
+  // Rating bonus (use first numeric rating found)
+  const firstRat = sub.distributionRating || sub.defPosRating || sub.possessionRating ||
+                   sub.dribblingRating || sub.finishingRating || sub.impactRating;
+  const rat = parseFloat(firstRat)||0;
+  if (rat >= 9) pts += 5;
+  else if (rat >= 8) pts += 3;
+
+  return pts;
+}
 
 // ── WEBSITE API ───────────────────────────────────────────────
 async function apiGet(table) {
@@ -809,15 +893,20 @@ const commands = [
   new SlashCommandBuilder().setName("redeem").setDescription("Redeem PJA points for a shop reward")
     .addStringOption(o => o.setName("item").setDescription("Item from /shop").setRequired(true)
       .addChoices(
-        { name:"Custom Nickname Colour (50pts)", value:"nickname_color" },
-        { name:"Profile Badge (75pts)",           value:"profile_badge" },
-        { name:"Team Shoutout (30pts)",            value:"shoutout" },
-        { name:"Featured Player Card (100pts)",    value:"featured_card" },
-        { name:"Clip Featured (80pts)",            value:"clip_feature" },
-        { name:"Custom Title (60pts)",             value:"custom_title" }
+        { name:"Rename Bot 24h (200pts)",            value:"rename_bot"      },
+        { name:"Server Emoji Request (200pts)",       value:"server_emoji"    },
+        { name:"Custom Command Reply (200pts)",       value:"custom_command"  },
+        { name:"Rename a Giveaway (150pts)",          value:"rename_giveaway" },
+        { name:"Server Poll Override (200pts)",       value:"server_poll"     },
+        { name:"Lucky Number Claim (150pts)",         value:"lucky_number"    },
+        { name:"Point Steal Ticket (150pts)",         value:"point_steal"     },
+        { name:"Point Gamble Ticket (75pts)",         value:"point_gamble"    },
+        { name:"Mystery Spin Wheel (100pts)",         value:"mystery_spin"    },
+        { name:"Temporary Shop Discount (200pts)",    value:"shop_discount"   }
       ))
     .addStringOption(o => o.setName("ign").setDescription("Your VRFS IGN — leave blank if you're linked. Managers only: use this to redeem for another player.").setRequired(false))
-    .addStringOption(o => o.setName("note").setDescription("Extra note for your redemption (optional)").setRequired(false)),
+    .addStringOption(o => o.setName("note").setDescription("Extra note for your redemption (optional)").setRequired(false))
+    .addStringOption(o => o.setName("target").setDescription("For point_steal: target player IGN. For point_gamble: amount to gamble (10-200).").setRequired(false)),
 
   new SlashCommandBuilder().setName("suggest").setDescription("Submit a suggestion for the team or bot")
     .addStringOption(o => o.setName("suggestion").setDescription("Your suggestion").setRequired(true))
@@ -849,14 +938,37 @@ const commands = [
   new SlashCommandBuilder().setName("shop-price").setDescription("Change the price of a shop item [Manager only]")
     .addStringOption(o => o.setName("item").setDescription("Item to change the price of").setRequired(true)
       .addChoices(
-        { name: "Custom Nickname Colour", value: "nickname_color" },
-        { name: "Profile Badge",          value: "profile_badge" },
-        { name: "Team Shoutout",          value: "shoutout" },
-        { name: "Featured Player Card",   value: "featured_card" },
-        { name: "Clip Featured",          value: "clip_feature" },
-        { name: "Custom Title",           value: "custom_title" }
+        { name: "Rename Bot 24h",           value: "rename_bot"      },
+        { name: "Server Emoji Request",     value: "server_emoji"    },
+        { name: "Custom Command Reply",     value: "custom_command"  },
+        { name: "Rename a Giveaway",        value: "rename_giveaway" },
+        { name: "Server Poll Override",     value: "server_poll"     },
+        { name: "Lucky Number Claim",       value: "lucky_number"    },
+        { name: "Point Steal Ticket",       value: "point_steal"     },
+        { name: "Point Gamble Ticket",      value: "point_gamble"    },
+        { name: "Mystery Spin Wheel",       value: "mystery_spin"    },
+        { name: "Temporary Shop Discount",  value: "shop_discount"   }
       ))
     .addIntegerOption(o => o.setName("price").setDescription("New price in PJA points (1–9999)").setRequired(true).setMinValue(1).setMaxValue(9999)),
+
+  // /shop-requests
+  new SlashCommandBuilder().setName("shop-requests").setDescription("View and action pending shop requests [Manager only]")
+    .addStringOption(o => o.setName("filter").setDescription("Filter by status").setRequired(false)
+      .addChoices({ name:"Pending",value:"pending" },{ name:"Approved",value:"approved" },{ name:"Denied",value:"denied" },{ name:"All",value:"all" })),
+
+  // /submission-history
+  new SlashCommandBuilder().setName("submission-history").setDescription("View full submission history for a match [Manager only]")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true))
+    .addStringOption(o => o.setName("filter").setDescription("Filter submissions").setRequired(false)
+      .addChoices(
+        { name:"All Pending",value:"pending" },{ name:"Approved",value:"approved" },{ name:"Denied",value:"denied" },
+        { name:"Needs Proof",value:"needs_proof" },{ name:"Edited",value:"edited" },{ name:"All",value:"all" }
+      ))
+    .addStringOption(o => o.setName("player").setDescription("Filter by player IGN").setRequired(false)),
+
+  // /motm-results
+  new SlashCommandBuilder().setName("motm-results").setDescription("View MOTM vote results for a match")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true)),
 
   // ── MATCH REPORT SYSTEM ───────────────────────────────────────
 
@@ -870,18 +982,29 @@ const commands = [
       .addChoices(
         { name: "GK — Goalkeeper",          value: "GK"      },
         { name: "DEF — Defender (CB/LB/RB)", value: "DEF"     },
-        { name: "MID — Midfielder",          value: "MID"     },
-        { name: "WING — Winger (LW/RW)",     value: "WING"    },
-        { name: "ST — Striker/Forward",      value: "ST"      },
-        { name: "Utility / Sub",             value: "Utility" },
-      )),
+        { name: "MID — Central Midfielder", value: "MID"     },
+        { name: "LM — Left Midfielder",     value: "LM"      },
+        { name: "RM — Right Midfielder",    value: "RM"      },
+        { name: "WING — Winger (LW/RW)",    value: "WING"    },
+        { name: "ST — Striker/Forward",     value: "ST"      },
+        { name: "Utility / Sub",            value: "Utility" },
+      ))
+    .addStringOption(o => o.setName("motm-nominee").setDescription("Who do you vote for MOTM? (optional — include it in your report)").setRequired(false))
+    .addStringOption(o => o.setName("motm-reason").setDescription("Why are you voting for them? (optional)").setRequired(false)),
 
   new SlashCommandBuilder().setName("motm-vote").setDescription("Vote for Man of the Match")
     .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true))
     .addStringOption(o => o.setName("vote-for").setDescription("IGN of the player you're voting for").setRequired(true)),
 
-  new SlashCommandBuilder().setName("review-submissions").setDescription("Review player self-reports for a match [Manager only]")
-    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true)),
+  new SlashCommandBuilder().setName("review-submissions").setDescription("Review player self-reports one at a time [Manager only]")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true))
+    .addStringOption(o => o.setName("filter").setDescription("Filter submissions").setRequired(false)
+      .addChoices(
+        { name:"All Pending",value:"pending" },{ name:"Needs Proof",value:"needs_proof" },
+        { name:"Edited",value:"edited" },{ name:"Approved",value:"approved" },{ name:"Denied",value:"denied" },
+        { name:"All",value:"all" }
+      ))
+    .addStringOption(o => o.setName("player").setDescription("Filter by player IGN").setRequired(false)),
 
   new SlashCommandBuilder().setName("ai-motm").setDescription("Get AI Man of the Match recommendation [Manager only]")
     .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true)),
@@ -2005,17 +2128,26 @@ client.on("interactionCreate", async (interaction) => {
     // ── /shop ──────────────────────────────────────────────
     if (commandName === "shop") {
       await interaction.deferReply();
+      const approvalItems = SHOP_ITEMS.filter(i => !i.autoFulfil);
+      const autoItems     = SHOP_ITEMS.filter(i =>  i.autoFulfil);
       const embed = pjaEmbed("🛒 PJA Team Reward Shop", 0x2563eb)
         .setDescription(
-          "Earn **PJA Points** by attending practice, playing matches, winning MOTM, and more!\n" +
-          "Use `/redeem` to spend your points. Managers approve all redemptions.\n\n" +
-          "**Check your balance:** `/points`"
+          "Earn **PJA Points** by playing matches, MOTM, self-reports, and more!\n" +
+          "Use `/redeem item:...` to spend your points. Check balance with `/points`.\n\n" +
+          "🪙 **Auto items** execute instantly. 📋 **Approval items** need a manager to confirm."
         )
-        .addFields(SHOP_ITEMS.map(item => ({
-          name:  item.name + " — 🪙 **" + item.cost + " pts**",
-          value: "> " + item.desc + "\n> **ID:** `" + item.id + "`",
-          inline: false,
-        })));
+        .addFields(
+          {
+            name: "📋 Approval Required",
+            value: approvalItems.map(i => `**${i.name}** — 🪙 **${i.cost} pts**\n> ${i.desc}\n> ID: \`${i.id}\``).join("\n\n"),
+            inline: false,
+          },
+          {
+            name: "⚡ Auto-Execute",
+            value: autoItems.map(i => `**${i.name}** — 🪙 **${i.cost} pts**\n> ${i.desc}\n> ID: \`${i.id}\``).join("\n\n"),
+            inline: false,
+          }
+        );
       await interaction.editReply({ embeds: [embed] });
       return;
     }
@@ -2061,7 +2193,8 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "redeem") {
       await interaction.deferReply({ ephemeral: true });
       const itemId      = interaction.options.getString("item");
-      const note        = interaction.options.getString("note") || "None";
+      const note        = interaction.options.getString("note")   || "None";
+      const targetArg   = interaction.options.getString("target") || "";
       const item        = SHOP_ITEMS.find(i => i.id === itemId);
       if (!item) { await interaction.editReply("❌ Item not found. Use `/shop` to see items."); return; }
 
@@ -2069,88 +2202,152 @@ client.on("interactionCreate", async (interaction) => {
       const linkedIgn   = getIgnForUser(user.id);
       const managerMode = isAdmin(member) && providedIgn && providedIgn.toLowerCase() !== (linkedIgn || "").toLowerCase();
 
-      // ── IGN resolution ────────────────────────────────────
-      // Managers can provide any IGN (redemption for another player)
-      // Regular players: if they provide an IGN it must match their own linked IGN
+      // IGN resolution
       let ign;
       if (providedIgn) {
         if (!managerMode && linkedIgn && providedIgn.toLowerCase() !== linkedIgn.toLowerCase()) {
-          // Player tried to redeem using someone else's IGN — block it
-          await interaction.editReply(
-            "⚠️ **Hold on!**\n" +
-            "You tried to redeem using **"+providedIgn+"** but your account is linked to **"+linkedIgn+"**.\n\n" +
-            "🚨 **Warning:** Using `/redeem` with another player's IGN to spend their points or send them DMs is not allowed and **will result in a strike** from a manager.\n\n" +
-            "If you meant to redeem for yourself, just leave the `ign` field blank."
-          );
+          await interaction.editReply("⚠️ You tried to redeem as **"+providedIgn+"** but you're linked to **"+linkedIgn+"**.\n🚨 Using another player's IGN will result in a strike.");
           return;
         }
-        if (!managerMode && !linkedIgn) {
-          // Not linked but provided an IGN — allow it but warn them to link
-          ign = providedIgn;
-        } else {
-          ign = providedIgn;
-        }
+        ign = providedIgn;
       } else {
-        // No IGN provided — must be linked
         if (!linkedIgn) {
-          await interaction.editReply(
-            "❌ You haven't linked your VRFS IGN yet!\n" +
-            "Use `/link ign:YourIGN` to link your account, then you won't need to type your IGN every time."
-          );
+          await interaction.editReply("❌ You haven't linked your IGN yet! Use `/link ign:YourIGN` first.");
           return;
         }
         ign = linkedIgn;
       }
 
-      // ── Points check ──────────────────────────────────────
-      // For manager gifting another player: deduct from the manager's own points
-      // unless the target player has enough themselves
-      const spendingIgn = managerMode ? ign : ign; // always the target's IGN for points
-      const currentPts  = getPoints(spendingIgn);
-      if (currentPts < item.cost) {
-        await interaction.editReply(
-          "❌ Not enough points!\n**"+ign+"** has **"+currentPts+" pts** but **"+item.name+"** costs **"+item.cost+" pts**."
-        );
+      // Apply discount if they have one
+      let effectiveCost = item.cost;
+      const discTok = discountTokens.get(ign.toLowerCase());
+      let discountApplied = false;
+      if (discTok && discTok.expiresAt > Date.now()) {
+        effectiveCost = Math.floor(item.cost * (1 - discTok.pct));
+        discountApplied = true;
+      }
+
+      // Points check
+      const currentPts = getPoints(ign);
+      if (currentPts < effectiveCost) {
+        await interaction.editReply("❌ Not enough points!\n**"+ign+"** has **"+currentPts+" pts** but **"+item.name+"** costs **"+effectiveCost+" pts**"+(discountApplied?" (after 25% discount)":"")+"."); return;
+      }
+
+      const redeemId = makeId();
+
+      // ── AUTO-FULFIL ITEMS ──────────────────────────────────
+      if (item.autoFulfil) {
+        // Deduct immediately
+        const newBal = addPoints(ign, -effectiveCost);
+        if (discountApplied) discountTokens.delete(ign.toLowerCase()); // use token
+
+        let resultMsg = "";
+
+        // Point Steal
+        if (itemId === "point_steal") {
+          const targetIgn = targetArg.trim();
+          if (!targetIgn) { await interaction.editReply("❌ You must provide a `target` player IGN to steal from."); return; }
+          if (targetIgn.toLowerCase() === ign.toLowerCase()) { await interaction.editReply("❌ You can't steal from yourself!"); return; }
+          const won = Math.random() < 0.5;
+          if (won) {
+            const stolen = Math.min(25, getPoints(targetIgn));
+            addPoints(targetIgn, -stolen);
+            addPoints(ign, stolen);
+            addPointHistory(ign, stolen, "Point steal win vs "+targetIgn);
+            addPointHistory(targetIgn, -stolen, "Stolen by "+ign);
+            resultMsg = "🎉 **WIN!** You stole **"+stolen+" pts** from **"+targetIgn+"**!\n💰 New balance: "+(newBal+stolen)+" pts";
+            // DM victim
+            try {
+              const victimId = getDiscordIdForIgn(targetIgn);
+              if (victimId) {
+                const victim = await client.users.fetch(victimId).catch(()=>null);
+                if (victim) await victim.send({ embeds:[pjaEmbed("🎯 Point Steal — You were targeted!", 0xef4444).setDescription("**"+ign+"** used a **Point Steal Ticket** against you and **won**!\n💸 **"+stolen+" pts** have been removed from your balance.")] }).catch(()=>{});
+              }
+            } catch(e) {}
+          } else {
+            resultMsg = "😔 **MISS!** Your steal attempt on **"+targetIgn+"** failed. No points moved.\n💰 Balance: "+newBal+" pts";
+          }
+        }
+
+        // Point Gamble
+        else if (itemId === "point_gamble") {
+          const gambleAmt = Math.min(200, Math.max(10, parseInt(targetArg)||50));
+          const haveEnough = getPoints(ign) >= gambleAmt;
+          if (!haveEnough) { await interaction.editReply("❌ You don't have **"+gambleAmt+" pts** to gamble."); return; }
+          const won = Math.random() < 0.5;
+          if (won) {
+            addPoints(ign, gambleAmt);
+            addPointHistory(ign, gambleAmt, "Gamble win ("+gambleAmt+"pts wagered)");
+            resultMsg = "🎰 **DOUBLE!** You wagered **"+gambleAmt+" pts** and won! +**"+gambleAmt+" pts**.\n💰 New balance: "+(newBal+gambleAmt)+" pts";
+          } else {
+            addPoints(ign, -gambleAmt);
+            addPointHistory(ign, -gambleAmt, "Gamble loss ("+gambleAmt+"pts wagered)");
+            resultMsg = "🎰 **BUST!** You wagered **"+gambleAmt+" pts** and lost them.\n💰 New balance: "+(newBal-gambleAmt)+" pts";
+          }
+        }
+
+        // Mystery Spin Wheel
+        else if (itemId === "mystery_spin") {
+          const roll = Math.random();
+          let reward;
+          if (roll < 0.10)      { reward = "jackpot"; addPoints(ign, 150); addPointHistory(ign, 150, "Mystery Spin jackpot"); resultMsg = "🎡 **JACKPOT!** 🎉 You won **150 pts**! Lucky!\n💰 New balance: "+(newBal+150)+" pts"; }
+          else if (roll < 0.30) { reward = "big";     addPoints(ign, 50);  addPointHistory(ign, 50,  "Mystery Spin big win"); resultMsg = "🎡 **Big Win!** You won **50 pts**!\n💰 New balance: "+(newBal+50)+" pts"; }
+          else if (roll < 0.55) { reward = "small";   addPoints(ign, 20);  addPointHistory(ign, 20,  "Mystery Spin small win"); resultMsg = "🎡 **Small Win!** You won **20 pts**.\n💰 New balance: "+(newBal+20)+" pts"; }
+          else if (roll < 0.70) { reward = "discount"; discountTokens.set(ign.toLowerCase(), { pct:0.25, expiresAt:Date.now()+86400000 }); resultMsg = "🎡 **Discount Token!** 🏷️ You have a **25% discount** on your next shop item (valid 24h)!\n💰 Balance: "+newBal+" pts"; }
+          else                  { reward = "nothing";  resultMsg = "🎡 **No reward this time.** Better luck next spin!\n💰 Balance: "+newBal+" pts"; }
+        }
+
+        // Shop Discount Token
+        else if (itemId === "shop_discount") {
+          discountTokens.set(ign.toLowerCase(), { pct:0.25, expiresAt:Date.now()+86400000 });
+          resultMsg = "🏷️ **25% Discount Token applied!**\nYour next shop item will cost 25% less (valid 24 hours).\n💰 Balance: "+newBal+" pts";
+        }
+
+        shopRedemptions.set(redeemId, { id:redeemId, userId:user.id, username:user.tag, ign, item:item.name, itemId, cost:effectiveCost, note, status:"auto-fulfilled", createdAt:new Date().toISOString() });
+        await interaction.editReply({ embeds:[pjaEmbed("⚡ Auto-Fulfilled — "+item.name, 0x22c55e).setDescription(resultMsg).addFields(
+          { name:"🛒 Item", value:item.name, inline:true },
+          { name:"🪙 Spent", value:"-"+effectiveCost+" pts"+(discountApplied?" (25% off)":""), inline:true },
+        )] });
         return;
       }
 
-      const redeemId   = makeId();
-      const redeemData = {
-        id: redeemId, userId: user.id, username: user.tag,
-        ign, item: item.name, itemId: item.id, cost: item.cost,
-        note, status: "pending", giftedBy: managerMode ? user.tag : null,
-        createdAt: new Date().toISOString()
-      };
-      shopRedemptions.set(redeemId, redeemData);
+      // ── APPROVAL ITEMS — queue for manager ────────────────
+      const reqId = makeId();
+      shopRequests.set(reqId, {
+        id:reqId, userId:user.id, username:user.tag, ign, itemId, itemName:item.name,
+        cost:effectiveCost, note, targetArg, status:"pending", createdAt:new Date().toISOString()
+      });
 
-      // ── Build confirmation embed ──────────────────────────
-      const isGift        = managerMode;
-      const warningField  = !linkedIgn && !isGift
-        ? [{ name: "⚠️ Account not linked", value: "You're not linked yet. Use `/link ign:"+ign+"` to link your account so you don't need to type your IGN next time.", inline: false }]
-        : [];
-
-      const confirmEmbed = pjaEmbed("🛍️ Confirm Redemption — "+item.name, isGift ? 0xf59e0b : 0x2563eb)
+      const confirmEmbed = pjaEmbed("📋 Shop Request Sent — "+item.name, 0x2563eb)
         .setDescription(
-          isGift
-            ? "🎁 You're gifting **"+item.name+"** to **"+ign+"** as a manager. Their points will be deducted."
-            : "You're about to redeem **"+item.name+"**. Just confirming this is what you want!"
+          "Your request for **"+item.name+"** has been sent to management!\n" +
+          "**Cost:** "+effectiveCost+" pts"+(discountApplied?" (25% discount applied)":"")+" — points will be deducted on approval.\n\n" +
+          "You'll receive a DM when a manager reviews your request."
         )
         .addFields(
-          { name: "🛒 Item",          value: item.name,                       inline: true },
-          { name: "🪙 Cost",          value: item.cost+" pts",                inline: true },
-          { name: "💰 Balance after", value: (currentPts - item.cost)+" pts", inline: true },
-          { name: "👤 Redeeming for", value: ign,                             inline: true },
-          { name: "📝 Note",          value: note,                            inline: false },
-          { name: "ℹ️ What you get",  value: item.desc,                       inline: false },
-          ...warningField,
-        )
-        .setFooter({ text: "This will immediately deduct points | Project Azure (PJA)" });
+          { name:"🆔 Request ID", value:reqId, inline:true },
+          { name:"👤 IGN", value:ign, inline:true },
+          { name:"📝 Note", value:note, inline:false },
+          ...(item.id==="lucky_number" ? [{ name:"🍀 Chosen Number", value:targetArg||"(none — manager will assign one)", inline:true }] : []),
+        );
+      await interaction.editReply({ embeds:[confirmEmbed] });
 
-      const confirmRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("redeem_confirm_"+redeemId).setLabel(isGift ? "✅ Gift it!" : "✅ Yes, redeem it!").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("redeem_cancel_"+redeemId) .setLabel("❌ Cancel").setStyle(ButtonStyle.Danger),
-      );
-      await interaction.editReply({ embeds:[confirmEmbed], components:[confirmRow] });
+      // Notify in channel for managers
+      try {
+        const shopRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("shopreq_approve_"+reqId).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId("shopreq_deny_"+reqId).setLabel("❌ Deny").setStyle(ButtonStyle.Danger),
+        );
+        await interaction.channel.send({ embeds:[
+          pjaEmbed("📋 Shop Request — "+item.name, 0xf59e0b)
+            .setDescription("<@"+user.id+"> (**"+ign+"**) wants to redeem **"+item.name+"** for **"+effectiveCost+" pts**.")
+            .addFields(
+              { name:"📝 Note", value:note, inline:false },
+              ...(targetArg ? [{ name:"🎯 Target/Extra", value:targetArg, inline:true }] : []),
+              { name:"🆔 Req ID", value:reqId, inline:true },
+            )
+        ], components:[shopRow] });
+      } catch(e) {}
       return;
     }
 
@@ -2349,6 +2546,32 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    // ── /shop-requests ─────────────────────────────────────
+    if (commandName === "shop-requests") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ Managers only."); return; }
+      const filter = interaction.options.getString("filter") || "pending";
+      let reqs = [...shopRequests.values()];
+      if (filter !== "all") reqs = reqs.filter(r => r.status === filter);
+      if (reqs.length === 0) { await interaction.editReply("📭 No shop requests with status **"+filter+"**."); return; }
+      const statusEmoji = { pending:"⏳", approved:"✅", denied:"❌" };
+      const embed = pjaEmbed("🛒 Shop Requests — "+filter.toUpperCase()+" ("+reqs.length+")", 0xf59e0b)
+        .setDescription(reqs.slice(0,15).map(r =>
+          (statusEmoji[r.status]||"❓")+" **"+r.ign+"** → **"+r.itemName+"** ("+r.cost+" pts) — "+r.status+"\n  📝 "+r.note
+        ).join("\n\n"));
+      const firstPending = reqs.find(r => r.status === "pending");
+      if (firstPending) {
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("shopreq_approve_"+firstPending.id).setLabel("✅ Approve "+firstPending.ign).setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId("shopreq_deny_"+firstPending.id).setLabel("❌ Deny").setStyle(ButtonStyle.Danger),
+        );
+        await interaction.editReply({ embeds:[embed], components:[row] });
+      } else {
+        await interaction.editReply({ embeds:[embed] });
+      }
+      return;
+    }
+
     // ════════════════════════════════════════════════════════
     // ── MATCH REPORT SYSTEM ──────────────────────────────────
     // ════════════════════════════════════════════════════════
@@ -2381,16 +2604,14 @@ client.on("interactionCreate", async (interaction) => {
 
     // ── /self-report ───────────────────────────────────────
     // ISOLATED try/catch — showModal consumes the interaction token.
-    // If anything goes wrong here we MUST NOT let the outer catch
-    // attempt interaction.reply() again (that would double-reply and
-    // cause the "Something went wrong" ephemeral error message).
     if (commandName === "self-report") {
       try {
-        const reportId  = interaction.options.getString("report-id").toUpperCase();
-        // Player explicitly declares their position — no more guessing from memory
-        const posChoice = interaction.options.getString("position"); // GK|DEF|MID|WING|ST|Utility
+        const reportId    = interaction.options.getString("report-id").toUpperCase();
+        const posChoice   = interaction.options.getString("position");
+        const motmNominee = (interaction.options.getString("motm-nominee") || "").trim();
+        const motmReason  = (interaction.options.getString("motm-reason")  || "").trim();
 
-        // Quick in-memory duplicate check — no API calls (3-sec limit)
+        // Quick duplicate check
         const subKey = reportId + "_" + user.id;
         if (selfReports.has(subKey)) {
           const ex = selfReports.get(subKey);
@@ -2400,12 +2621,23 @@ client.on("interactionCreate", async (interaction) => {
           }
         }
 
-        const posType = { GK:"gk", DEF:"def", MID:"mid", WING:"wing", ST:"st", Utility:"util" }[posChoice] || "util";
+        // If they included a MOTM nominee, cast/update the vote now
+        if (motmNominee) {
+          const myIgn = getIgnForUser(user.id) || user.username;
+          if (motmNominee.toLowerCase() !== myIgn.toLowerCase() && !motmVoteLocks.get(reportId)) {
+            const voteKey = reportId + "_" + user.id;
+            const prev    = motmVotes.get(voteKey);
+            motmVotes.set(voteKey, { nominee:motmNominee, reason:motmReason, voterId:user.id, voterIgn:myIgn, changed:!!prev, changedFrom:prev?.nominee||null, timestamp:new Date().toISOString() });
+          }
+        }
+
+        // Map LM/RM to MID for field set
+        const posType = { GK:"gk", DEF:"def", MID:"mid", LM:"mid", RM:"mid", WING:"wing", ST:"st", Utility:"util" }[posChoice] || "util";
 
         const report = matchReportsFull.get(reportId);
         const safeOpponent = report ? (report.opponent || "Match").substring(0, 10) : "Match";
-        // Title ≤ 45 chars
-        const modalTitle = ("📊 " + posChoice + " Stats vs " + safeOpponent).substring(0, 45);
+        const displayPos   = posChoice;
+        const modalTitle   = ("📊 " + displayPos + " Stats vs " + safeOpponent).substring(0, 45);
         const modal = new ModalBuilder()
           .setCustomId("sr_modal_" + reportId + "_" + posChoice)
           .setTitle(modalTitle);
@@ -2582,7 +2814,6 @@ client.on("interactionCreate", async (interaction) => {
         const fieldMap = { gk: gkFields, def: defFields, mid: midFields, wing: wingFields, st: stFields, util: utilFields };
         const fields = fieldMap[posType] || utilFields;
         fields.forEach(f => modal.addComponents(f));
-
         // showModal() consumes the interaction — must be last, no reply after this
         await interaction.showModal(modal);
       } catch (srErr) {
@@ -2601,20 +2832,62 @@ client.on("interactionCreate", async (interaction) => {
       const voteFor  = interaction.options.getString("vote-for").trim();
       const report   = matchReportsFull.get(reportId);
       if (!report) { await interaction.editReply("❌ Match report **" + reportId + "** not found."); return; }
-      if (report.motmLocked) { await interaction.editReply("🔒 MOTM voting for this match has been locked."); return; }
+      if (motmVoteLocks.get(reportId)) { await interaction.editReply("🔒 MOTM voting for this match is **locked**."); return; }
       const myIgn = getIgnForUser(user.id) || user.username;
       if (voteFor.toLowerCase() === myIgn.toLowerCase()) { await interaction.editReply("❌ You cannot vote for yourself."); return; }
       const voteKey = reportId + "_" + user.id;
       const prev    = motmVotes.get(voteKey);
-      motmVotes.set(voteKey, voteFor);
+      motmVotes.set(voteKey, { nominee:voteFor, reason:"", voterId:user.id, voterIgn:myIgn, changed:!!prev, changedFrom:prev?.nominee||null, timestamp:new Date().toISOString() });
       const allVotes = [...motmVotes.entries()].filter(([k]) => k.startsWith(reportId + "_"));
       const tally    = {};
-      allVotes.forEach(([,ign]) => { tally[ign] = (tally[ign]||0) + 1; });
+      allVotes.forEach(([,v]) => { tally[v.nominee] = (tally[v.nominee]||0) + 1; });
       const topEntries = Object.entries(tally).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([ign,c]) => "• **"+ign+"** — "+c+" vote(s)").join("\n");
-      const changed = prev && prev !== voteFor;
+      const changed = prev && prev.nominee !== voteFor;
       await interaction.editReply({ embeds: [pjaEmbed("🏆 MOTM Vote Recorded", 0x22c55e)
-        .setDescription((changed ? "✅ Changed vote from **"+prev+"** to **"+voteFor+"**" : "✅ Voted for **"+voteFor+"**") + "\n\n**Current standings:**\n" + (topEntries || "No votes yet"))
+        .setDescription((changed ? "✅ Changed vote from **"+prev.nominee+"** to **"+voteFor+"**" : "✅ Voted for **"+voteFor+"**") + "\n\n**Current standings:**\n" + (topEntries || "No votes yet"))
         .setFooter({ text: "Votes are anonymous to other players | Project Azure (PJA)" })] });
+      return;
+    }
+
+    // ── /motm-results ──────────────────────────────────────
+    if (commandName === "motm-results") {
+      await interaction.deferReply();
+      const reportId = interaction.options.getString("report-id").toUpperCase();
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Match report **" + reportId + "** not found."); return; }
+      const allVotes = [...motmVotes.entries()].filter(([k]) => k.startsWith(reportId + "_")).map(([,v])=>v);
+      if (allVotes.length === 0) { await interaction.editReply("📭 No MOTM votes cast yet for **"+reportId+"**."); return; }
+      const tally = {};
+      allVotes.forEach(v => { tally[v.nominee] = (tally[v.nominee]||0) + 1; });
+      const sorted = Object.entries(tally).sort((a,b)=>b[1]-a[1]);
+      const total  = allVotes.length;
+      const topIgn = sorted[0][0];
+      const topCnt = sorted[0][1];
+      const pct    = n => ((n/total)*100).toFixed(0)+"%";
+      const lines  = sorted.map(([ign,c],i) =>
+        (i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)) + " **"+ign+"** — "+c+" vote(s) ("+pct(c)+")"
+      ).join("\n");
+      const isLocked = motmVoteLocks.get(reportId) || false;
+      const embed = pjaEmbed("🏆 MOTM Results — "+reportId, 0xf59e0b)
+        .setDescription("PJA vs **"+report.opponent+"** | "+report.result+" "+report.score)
+        .addFields(
+          { name:"🗳️ Total Votes", value:total+" votes cast", inline:true },
+          { name:"🏆 Top Candidate", value:"**"+topIgn+"** ("+topCnt+" votes)", inline:true },
+          { name:"🔒 Voting Status", value:isLocked?"🔒 Locked":"🔓 Open", inline:true },
+          { name:"📊 Full Standings", value:lines, inline:false },
+          ...(report.motm ? [{ name:"✅ Confirmed MOTM", value:"**"+report.motm+"**", inline:true }] : []),
+        );
+      const canManage = isAdmin(member);
+      if (canManage) {
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("motm_top_"+reportId+"_"+topIgn).setLabel("✅ Approve Top Voted").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId("motm_different_"+reportId).setLabel("🔄 Choose Different").setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId("motm_locktoggle_"+reportId).setLabel(isLocked?"🔓 Unlock Voting":"🔒 Lock Voting").setStyle(ButtonStyle.Primary),
+        );
+        await interaction.editReply({ embeds:[embed], components:[row] });
+      } else {
+        await interaction.editReply({ embeds:[embed] });
+      }
       return;
     }
 
@@ -2622,33 +2895,111 @@ client.on("interactionCreate", async (interaction) => {
     if (commandName === "review-submissions") {
       await interaction.deferReply({ ephemeral: true });
       if (!isAdmin(member)) { await interaction.editReply("❌ This command is for Managers only."); return; }
-      const reportId = interaction.options.getString("report-id").toUpperCase();
-      const report   = matchReportsFull.get(reportId);
+      const reportId    = interaction.options.getString("report-id").toUpperCase();
+      const filterArg   = interaction.options.getString("filter")  || "pending";
+      const playerArg   = (interaction.options.getString("player") || "").toLowerCase();
+      const report      = matchReportsFull.get(reportId);
       if (!report) { await interaction.editReply("❌ Match report **" + reportId + "** not found."); return; }
-      const subs = [...selfReports.entries()]
+
+      let subs = [...selfReports.entries()]
         .filter(([k]) => k.startsWith(reportId + "_"))
         .map(([, v]) => v);
-      if (subs.length === 0) { await interaction.editReply("📭 No submissions yet for match **" + reportId + "**."); return; }
-      const statusEmoji = { pending:"⏳", approved:"✅", denied:"❌", needs_proof:"📎" };
-      const lines = subs.map(s =>
-        (statusEmoji[s.status]||"❓") + " **" + s.ign + "** (" + s.position + ") — " + s.status +
-        (s.goals !== undefined ? "\n  ⚽ Goals: " + (s.goals||0) + " | 🎯 Ast: " + (s.assists||0) + (s.saves!==undefined ? " | 🧤 Saves: " + (s.saves||0) : "") : "") +
-        (s.notes ? "\n  📝 " + s.notes.substring(0,60) : "")
-      ).join("\n\n");
-      const firstPending = subs.find(s => s.status === "pending");
-      const embed = pjaEmbed("📋 Submissions — " + reportId + " (" + subs.length + ")", 0x2563eb)
-        .setDescription(lines || "No submissions.")
-        .addFields({ name:"📊 Match", value:"PJA vs **"+report.opponent+"** | "+report.result+" "+report.score+" | "+report.date, inline:false });
-      if (firstPending) {
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("sub_approve_"+reportId+"_"+firstPending.userId).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId("sub_deny_"+reportId+"_"+firstPending.userId).setLabel("❌ Deny").setStyle(ButtonStyle.Danger),
-          new ButtonBuilder().setCustomId("sub_proof_"+reportId+"_"+firstPending.userId).setLabel("📎 Needs Proof").setStyle(ButtonStyle.Secondary),
-        );
-        await interaction.editReply({ embeds: [embed], components: [row] });
-      } else {
-        await interaction.editReply({ embeds: [embed] });
+
+      if (filterArg !== "all") {
+        if (filterArg === "edited") subs = subs.filter(s => s.editedByManager);
+        else subs = subs.filter(s => s.status === filterArg);
       }
+      if (playerArg) subs = subs.filter(s => (s.ign||"").toLowerCase().includes(playerArg));
+
+      if (subs.length === 0) {
+        await interaction.editReply("📭 No submissions match **"+filterArg+(playerArg?" / "+playerArg:"")+"** for match **" + reportId + "**.");
+        return;
+      }
+
+      // Build single-submission review card
+      const sub = subs[0];
+      const remaining = subs.length;
+      const subKey = reportId + "_" + sub.userId;
+      const hist = submissionHistory.get(subKey) || [];
+      const statusEmoji = { pending:"⏳", approved:"✅", denied:"❌", needs_proof:"📎" };
+
+      const reviewEmbed = pjaEmbed(
+        "📋 Review — " + (sub.ign||"?") + " (" + (sub.position||"?") + ")",
+        sub.status==="approved"?0x22c55e:sub.status==="denied"?0xef4444:0x2563eb
+      )
+        .setDescription(
+          "**Match:** PJA vs **"+report.opponent+"** | "+report.result+" "+report.score+"\n" +
+          "**Report ID:** `"+reportId+"` | **Submitted:** "+(sub.submittedAt?new Date(sub.submittedAt).toDateString():"?")+"\n" +
+          "**Status:** "+(statusEmoji[sub.status]||"❓")+" "+sub.status+
+          (sub.editedByManager?" | ✏️ Edited by "+sub.editedBy:"")
+        )
+        .addFields(
+          { name:"👤 Player",   value:sub.ign||"?",                    inline:true },
+          { name:"📍 Position", value:sub.position||"?",               inline:true },
+          { name:"🆔 User",     value:"<@"+sub.userId+">",             inline:true },
+          ...(sub.goals!==undefined    ? [{ name:"⚽ Goals",    value:String(sub.goals||0),         inline:true }] : []),
+          ...(sub.assists!==undefined  ? [{ name:"🎯 Assists",  value:String(sub.assists||0),       inline:true }] : []),
+          ...(sub.saves!==undefined    ? [{ name:"🧤 Saves",    value:String(sub.saves||0),         inline:true }] : []),
+          ...(sub.cleanSheet           ? [{ name:"🛡️ CS",      value:sub.cleanSheet,               inline:true }] : []),
+          ...(sub.tackles              ? [{ name:"💪 Tackles",  value:String(sub.tackles),          inline:true }] : []),
+          ...(sub.interceptions        ? [{ name:"✂️ Ints",    value:String(sub.interceptions),     inline:true }] : []),
+          ...(sub.keyPasses            ? [{ name:"🔑 KP",       value:String(sub.keyPasses),        inline:true }] : []),
+          ...(sub.notes                ? [{ name:"📝 Notes",    value:sub.notes.substring(0,200),   inline:false }] : []),
+          ...(sub.editReason           ? [{ name:"✏️ Edit Reason", value:sub.editReason,            inline:false }] : []),
+          ...(hist.length              ? [{ name:"📜 History ("+hist.length+")", value:hist.slice(-3).map(h=>`• ${h.event} by ${h.by}`+(h.reason?" — "+h.reason:"")).join("\n"), inline:false }] : []),
+        )
+        .setFooter({ text:"Showing 1 of "+remaining+" | Filter: "+filterArg+" | Project Azure (PJA)" });
+
+      // Buttons: Approve, Edit, Deny, Request Proof, Approve & Next, Skip, Previous, Next, Close
+      const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("subq_approve_"+reportId+"_"+sub.userId).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("subq_edit_"+reportId+"_"+sub.userId).setLabel("✏️ Edit").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("subq_deny_"+reportId+"_"+sub.userId).setLabel("❌ Deny").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("subq_proof_"+reportId+"_"+sub.userId).setLabel("📎 Proof").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("subq_apprnext_"+reportId+"_"+sub.userId+"_"+filterArg+"_"+playerArg).setLabel("✅➡️ App+Next").setStyle(ButtonStyle.Success),
+      );
+      const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("subq_skip_"+reportId+"_"+sub.userId+"_"+filterArg+"_"+playerArg).setLabel("⏭ Skip").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("subq_close_"+reportId).setLabel("🔒 Close").setStyle(ButtonStyle.Danger),
+      );
+
+      await interaction.editReply({ embeds:[reviewEmbed], components:[row1, row2] });
+      return;
+    }
+
+    // ── /submission-history ────────────────────────────────
+    if (commandName === "submission-history") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ Managers only."); return; }
+      const reportId  = interaction.options.getString("report-id").toUpperCase();
+      const filterArg = interaction.options.getString("filter") || "all";
+      const playerArg = (interaction.options.getString("player") || "").toLowerCase();
+      const report    = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Report not found."); return; }
+
+      let subs = [...selfReports.entries()]
+        .filter(([k]) => k.startsWith(reportId+"_"))
+        .map(([k,v]) => ({ ...v, subKey:k }));
+
+      if (filterArg !== "all") {
+        if (filterArg === "edited") subs = subs.filter(s => s.editedByManager);
+        else subs = subs.filter(s => s.status === filterArg);
+      }
+      if (playerArg) subs = subs.filter(s => (s.ign||"").toLowerCase().includes(playerArg));
+
+      if (subs.length === 0) { await interaction.editReply("📭 No submissions match those filters."); return; }
+
+      const lines = subs.slice(0,10).map(s => {
+        const hist = submissionHistory.get(s.subKey) || [];
+        const lastEvt = hist[hist.length-1];
+        return `**${s.ign}** (${s.position||"?"}) — ${s.status}${s.editedByManager?" ✏️":""}` +
+          `\n  ⚽${s.goals||0} 🎯${s.assists||0} 🧤${s.saves||0}` +
+          (lastEvt ? `\n  Last: _${lastEvt.event}_ by ${lastEvt.by}` : "");
+      }).join("\n\n");
+
+      await interaction.editReply({ embeds:[pjaEmbed("📜 Submission History — "+reportId, 0x2563eb)
+        .setDescription("PJA vs **"+report.opponent+"** | "+report.result+" "+report.score)
+        .addFields({ name:"📋 Submissions ("+subs.length+")", value:lines||"None" })] });
       return;
     }
 
@@ -2666,8 +3017,9 @@ client.on("interactionCreate", async (interaction) => {
 
       // Tally MOTM votes
       const voteTally = {};
-      [...motmVotes.entries()].filter(([k]) => k.startsWith(reportId+"_")).forEach(([,ign]) => {
-        voteTally[ign.toLowerCase()] = (voteTally[ign.toLowerCase()]||0)+1;
+      [...motmVotes.entries()].filter(([k]) => k.startsWith(reportId+"_")).forEach(([,v]) => {
+        const nom = typeof v === "string" ? v : v.nominee;
+        voteTally[nom.toLowerCase()] = (voteTally[nom.toLowerCase()]||0)+1;
       });
 
       function calcScore(sub, votes) {
@@ -2770,7 +3122,10 @@ client.on("interactionCreate", async (interaction) => {
 
       // MOTM
       const voteTally = {};
-      [...motmVotes.entries()].filter(([k])=>k.startsWith(reportId+"_")).forEach(([,ign])=>{ voteTally[ign.toLowerCase()]=(voteTally[ign.toLowerCase()]||0)+1; });
+      [...motmVotes.entries()].filter(([k])=>k.startsWith(reportId+"_")).forEach(([,v])=>{
+        const nom = typeof v === "string" ? v : v.nominee;
+        voteTally[nom.toLowerCase()]=(voteTally[nom.toLowerCase()]||0)+1;
+      });
       const topVotedIgn = Object.entries(voteTally).sort((a,b)=>b[1]-a[1])[0]?.[0];
       const confirmedMotm = motmOverride || report.motm || (topVotedIgn ? [...new Set(approvedSubs.map(s=>s.ign))].find(n=>n.toLowerCase()===topVotedIgn) || topVotedIgn : "TBD");
 
@@ -3084,6 +3439,10 @@ client.on("interactionCreate", async (interaction) => {
         applications:   [...applications.values()],
         scheduleList,
         giveaways:      [...giveaways.entries()].map(([id,g])=>({id, prize:g.prize, ended:g.ended, entryCount:g.entries.size})),
+        shopRequests:   [...shopRequests.values()],
+        pointHistory:   [...pointHistory.entries()].map(([ign,h])=>({ign,history:h})),
+        discountTokens: [...discountTokens.entries()].map(([ign,t])=>({ign,...t})),
+        luckyNumbers:   [...luckyNumbers.entries()].map(([ign,n])=>({ign,number:n})),
       };
       const json    = JSON.stringify(exportObj, null, 2);
       const buf     = Buffer.from(json, "utf8");
@@ -3501,11 +3860,198 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    // ── Submission review buttons ──────────────────────────
+    // ── Submission review buttons (new queue system) ───────
+    if (parts[0]==="subq") {
+      // subq_approve_REPORTID_USERID
+      // subq_edit_REPORTID_USERID
+      // subq_deny_REPORTID_USERID
+      // subq_proof_REPORTID_USERID
+      // subq_apprnext_REPORTID_USERID_FILTER_PLAYERARG
+      // subq_skip_REPORTID_USERID_FILTER_PLAYERARG
+      // subq_close_REPORTID
+      const action   = parts[1];
+      const reportId = parts[2];
+      const userId   = parts[3];
+
+      if (action === "close") {
+        await interaction.deferUpdate();
+        await interaction.editReply({ embeds:[pjaEmbed("🔒 Review Closed", 0x6b7280).setDescription("Submission review for **"+reportId+"** closed.")], components:[] });
+        return;
+      }
+
+      if (!isAdmin(member)) { await interaction.deferUpdate(); await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+
+      const subKey = reportId + "_" + userId;
+      const sub    = selfReports.get(subKey);
+      if (!sub) { await interaction.deferUpdate(); await interaction.followUp({ content:"❌ Submission not found.", ephemeral:true }); return; }
+
+      // ── EDIT — open modal ──────────────────────────────────
+      if (action === "edit") {
+        try {
+          const modal = new ModalBuilder()
+            .setCustomId("subedit_modal_"+reportId+"_"+userId)
+            .setTitle("Edit Submission".substring(0,45));
+          const rows = [
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("edit_goals").setLabel("Goals").setStyle(TextInputStyle.Short).setRequired(false).setValue(String(sub.goals||""  ))),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("edit_assists").setLabel("Assists").setStyle(TextInputStyle.Short).setRequired(false).setValue(String(sub.assists||""))),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("edit_saves").setLabel("Saves").setStyle(TextInputStyle.Short).setRequired(false).setValue(String(sub.saves||""))),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("edit_cleansheet").setLabel("Clean Sheet (yes/no)").setStyle(TextInputStyle.Short).setRequired(false).setValue(String(sub.cleanSheet||""))),
+            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("edit_reason").setLabel("Reason for edit (shown to player)").setStyle(TextInputStyle.Paragraph).setRequired(true).setPlaceholder("e.g. Score was corrected by match data")),
+          ];
+          rows.forEach(r => modal.addComponents(r));
+          await interaction.showModal(modal);
+        } catch(e) {
+          console.error("[subq_edit] showModal error:", e.message);
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content:"❌ Could not open edit modal.", ephemeral:true }).catch(()=>{});
+          }
+        }
+        return;
+      }
+
+      await interaction.deferUpdate();
+
+      // ── APPROVE ──────────────────────────────────────────
+      if (action === "approve" || action === "apprnext") {
+        if (sub.pointsAwarded) {
+          await interaction.followUp({ content:"⚠️ **"+sub.ign+"**'s submission already has points awarded.", ephemeral:true });
+        } else {
+          sub.status      = "approved";
+          sub.reviewedBy  = user.tag;
+          sub.pointsAwarded = true;
+
+          // Award stats
+          addStat(sub.ign, "matches", 1);
+          if (parseInt(sub.goals))   addStat(sub.ign, "goals",      parseInt(sub.goals));
+          if (parseInt(sub.assists)) addStat(sub.ign, "assists",    parseInt(sub.assists));
+          if (parseInt(sub.saves))   addStat(sub.ign, "saves",      parseInt(sub.saves));
+          if (sub.cleanSheet?.toLowerCase()==="yes") addStat(sub.ign, "cleanSheets", 1);
+
+          // Award PJA points
+          const ptsEarned = calcSubmissionPoints(sub);
+          addPoints(sub.ign, ptsEarned);
+          addPointHistory(sub.ign, ptsEarned, "Self-report approved ("+reportId+")");
+          addSubHistory(subKey, "approved", user.tag, "", sub);
+
+          // DM player
+          try {
+            const targetUser = await client.users.fetch(userId).catch(()=>null);
+            if (targetUser) {
+              await targetUser.send({ embeds:[pjaEmbed("✅ Stats Approved!", 0x22c55e)
+                .setDescription("Your stats for **PJA vs "+sub.matchOpponent+"** have been **approved** by **"+user.tag+"**!")
+                .addFields(
+                  { name:"⚽ Goals",    value:String(sub.goals||0),   inline:true },
+                  { name:"🎯 Assists",  value:String(sub.assists||0), inline:true },
+                  { name:"🧤 Saves",    value:String(sub.saves||0),   inline:true },
+                  { name:"🪙 PJA Points Earned", value:"+"+ptsEarned+" pts", inline:true },
+                  { name:"💰 New Balance", value:getPoints(sub.ign)+" pts", inline:true },
+                )] }).catch(()=>{});
+            }
+          } catch(e) {}
+
+          await interaction.followUp({ content:"✅ **"+sub.ign+"** approved & +**"+ptsEarned+" pts** awarded!", ephemeral:true });
+        }
+      }
+
+      // ── DENY ──────────────────────────────────────────────
+      else if (action === "deny") {
+        sub.status     = "denied";
+        sub.reviewedBy = user.tag;
+        addSubHistory(subKey, "denied", user.tag, "", sub);
+        try {
+          const targetUser = await client.users.fetch(userId).catch(()=>null);
+          if (targetUser) await targetUser.send({ embeds:[pjaEmbed("❌ Stats Denied", 0xef4444).setDescription("Your stats for **PJA vs "+sub.matchOpponent+"** were **denied**.\nContact **"+user.tag+"** for more info.")] }).catch(()=>{});
+        } catch(e) {}
+        await interaction.followUp({ content:"❌ **"+sub.ign+"**'s submission denied.", ephemeral:true });
+      }
+
+      // ── NEEDS PROOF ───────────────────────────────────────
+      else if (action === "proof") {
+        sub.status     = "needs_proof";
+        sub.reviewedBy = user.tag;
+        addSubHistory(subKey, "needs_proof", user.tag, "", sub);
+        try {
+          const targetUser = await client.users.fetch(userId).catch(()=>null);
+          if (targetUser) await targetUser.send({ embeds:[pjaEmbed("📎 Proof Required", 0xf59e0b).setDescription("Your stats for **PJA vs "+sub.matchOpponent+"** need **proof/clip link**.\nPlease send it to a manager or reply to this DM.")] }).catch(()=>{});
+        } catch(e) {}
+        await interaction.followUp({ content:"📎 **"+sub.ign+"** marked as needs proof.", ephemeral:true });
+      }
+
+      // ── SKIP — just advance to next ───────────────────────
+      // (no status change, just load next in queue)
+
+      // If apprnext or skip — load next submission
+      if (action === "apprnext" || action === "skip") {
+        const filterArg  = parts[4] || "pending";
+        const playerArg  = parts[5] || "";
+        const report     = matchReportsFull.get(reportId);
+        if (!report) return;
+
+        let nextSubs = [...selfReports.entries()]
+          .filter(([k]) => k.startsWith(reportId+"_") && k !== subKey)
+          .map(([,v]) => v);
+        if (filterArg !== "all") {
+          if (filterArg === "edited") nextSubs = nextSubs.filter(s => s.editedByManager);
+          else nextSubs = nextSubs.filter(s => s.status === filterArg);
+        }
+        if (playerArg) nextSubs = nextSubs.filter(s => (s.ign||"").toLowerCase().includes(playerArg));
+
+        if (nextSubs.length === 0) {
+          await interaction.editReply({ embeds:[pjaEmbed("✅ Queue Complete", 0x22c55e).setDescription("No more submissions matching the current filter for **"+reportId+"**.")], components:[] });
+          return;
+        }
+
+        const nextSub  = nextSubs[0];
+        const nextKey  = reportId+"_"+nextSub.userId;
+        const hist     = submissionHistory.get(nextKey) || [];
+        const statusEmoji = { pending:"⏳", approved:"✅", denied:"❌", needs_proof:"📎" };
+
+        const nextEmbed = pjaEmbed(
+          "📋 Review — "+(nextSub.ign||"?")+" ("+(nextSub.position||"?")+") ["+(nextSubs.length)+" left]",
+          nextSub.status==="approved"?0x22c55e:nextSub.status==="denied"?0xef4444:0x2563eb
+        )
+          .setDescription("**Match:** PJA vs **"+report.opponent+"** | "+report.result+" "+report.score+
+            "\n**Status:** "+(statusEmoji[nextSub.status]||"❓")+" "+nextSub.status+(nextSub.editedByManager?" | ✏️ Edited":""))
+          .addFields(
+            { name:"👤 Player",  value:nextSub.ign||"?",            inline:true },
+            { name:"📍 Pos",     value:nextSub.position||"?",       inline:true },
+            { name:"🆔 User",    value:"<@"+nextSub.userId+">",     inline:true },
+            ...(nextSub.goals!==undefined   ? [{ name:"⚽",  value:String(nextSub.goals||0),   inline:true }] : []),
+            ...(nextSub.assists!==undefined ? [{ name:"🎯",  value:String(nextSub.assists||0), inline:true }] : []),
+            ...(nextSub.saves!==undefined   ? [{ name:"🧤",  value:String(nextSub.saves||0),   inline:true }] : []),
+            ...(nextSub.cleanSheet          ? [{ name:"🛡️",  value:nextSub.cleanSheet,         inline:true }] : []),
+            ...(nextSub.notes               ? [{ name:"📝 Notes", value:nextSub.notes.substring(0,200), inline:false }] : []),
+            ...(hist.length                 ? [{ name:"📜 History", value:hist.slice(-2).map(h=>`• ${h.event} by ${h.by}`).join("\n"), inline:false }] : []),
+          )
+          .setFooter({ text:"Queue: "+nextSubs.length+" remaining | Filter: "+filterArg+" | Project Azure (PJA)" });
+
+        const row1 = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("subq_approve_"+reportId+"_"+nextSub.userId).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId("subq_edit_"+reportId+"_"+nextSub.userId).setLabel("✏️ Edit").setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId("subq_deny_"+reportId+"_"+nextSub.userId).setLabel("❌ Deny").setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId("subq_proof_"+reportId+"_"+nextSub.userId).setLabel("📎 Proof").setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId("subq_apprnext_"+reportId+"_"+nextSub.userId+"_"+filterArg+"_"+playerArg).setLabel("✅➡️ App+Next").setStyle(ButtonStyle.Success),
+        );
+        const row2 = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("subq_skip_"+reportId+"_"+nextSub.userId+"_"+filterArg+"_"+playerArg).setLabel("⏭ Skip").setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId("subq_close_"+reportId).setLabel("🔒 Close").setStyle(ButtonStyle.Danger),
+        );
+        await interaction.editReply({ embeds:[nextEmbed], components:[row1, row2] });
+      } else {
+        // For approve/deny/proof — update the existing card with disabled buttons
+        const disabledRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("subq_done").setLabel("✅ Action Done").setStyle(ButtonStyle.Secondary).setDisabled(true),
+        );
+        await interaction.editReply({ components:[disabledRow] });
+      }
+      return;
+    }
+
+    // ── Submission review buttons (legacy `sub_` — kept for backwards compat) ─
     if (parts[0]==="sub") {
       await interaction.deferUpdate();
       if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
-      const action   = parts[1]; // approve | deny | proof
+      const action   = parts[1];
       const reportId = parts[2];
       const userId   = parts[3];
       const subKey   = reportId + "_" + userId;
@@ -3514,48 +4060,75 @@ client.on("interactionCreate", async (interaction) => {
       const statusMap = { approve:"approved", deny:"denied", proof:"needs_proof" };
       sub.status = statusMap[action] || action;
       sub.reviewedBy = user.tag;
-      if (sub.status === "approved") {
-        // Apply stats to player's local stats
+      if (sub.status === "approved" && !sub.pointsAwarded) {
+        sub.pointsAwarded = true;
         addStat(sub.ign, "matches", 1);
-        if (parseInt(sub.goals))       addStat(sub.ign, "goals",       parseInt(sub.goals));
-        if (parseInt(sub.assists))     addStat(sub.ign, "assists",     parseInt(sub.assists));
-        if (parseInt(sub.saves))       addStat(sub.ign, "saves",       parseInt(sub.saves));
+        if (parseInt(sub.goals))   addStat(sub.ign, "goals",   parseInt(sub.goals));
+        if (parseInt(sub.assists)) addStat(sub.ign, "assists", parseInt(sub.assists));
+        if (parseInt(sub.saves))   addStat(sub.ign, "saves",   parseInt(sub.saves));
         if (sub.cleanSheet?.toLowerCase()==="yes") addStat(sub.ign, "cleanSheets", 1);
-        addPoints(sub.ign, 5); // 5 pts for match participation
+        const ptsEarned = calcSubmissionPoints(sub);
+        addPoints(sub.ign, ptsEarned);
+        addPointHistory(sub.ign, ptsEarned, "Self-report approved ("+reportId+")");
+        addSubHistory(subKey, "approved", user.tag, "", sub);
+        try {
+          const targetUser = await client.users.fetch(userId).catch(()=>null);
+          if (targetUser) await targetUser.send({ embeds:[pjaEmbed("✅ Stats Approved!", 0x22c55e).setDescription("Your stats for **PJA vs "+sub.matchOpponent+"** were approved! +**"+ptsEarned+" pts** 🪙").addFields({ name:"💰 Balance", value:getPoints(sub.ign)+" pts", inline:true })] }).catch(()=>{});
+        } catch(e) {}
+        await interaction.followUp({ content:"✅ **"+sub.ign+"** approved & +"+ptsEarned+" pts.", ephemeral:true });
+      } else {
+        const msgs = { denied:"❌ Your stats for **PJA vs "+sub.matchOpponent+"** were denied.", needs_proof:"📎 Your stats need proof. Please send to a manager." };
+        try {
+          const targetUser = await client.users.fetch(userId).catch(()=>null);
+          if (targetUser) await targetUser.send({ embeds:[pjaEmbed("📊 Stats Update", sub.status==="denied"?0xef4444:0xf59e0b).setDescription(msgs[sub.status]||"Stats updated.")] }).catch(()=>{});
+        } catch(e) {}
+        await interaction.followUp({ content:"**"+sub.ign+"** → **"+sub.status+"**.", ephemeral:true });
       }
-      const statusEmoji = { approved:"✅", denied:"❌", needs_proof:"📎" };
-      try {
-        const targetUser = await client.users.fetch(userId).catch(()=>null);
-        if (targetUser) {
-          const msgs = {
-            approved: "✅ Your stats for **PJA vs "+sub.matchOpponent+"** have been **approved**! +5 PJA Points 🪙",
-            denied:   "❌ Your stats for **PJA vs "+sub.matchOpponent+"** were **denied**. Contact a manager for more info.",
-            needs_proof:"📎 Your stats for **PJA vs "+sub.matchOpponent+"** need **proof/clip link**. Please send it to a manager.",
-          };
-          await targetUser.send({ embeds:[pjaEmbed("📊 Stats Update", sub.status==="approved"?0x22c55e:sub.status==="denied"?0xef4444:0xf59e0b).setDescription(msgs[sub.status]||"Stats updated.")] }).catch(()=>{});
-        }
-      } catch(e) {}
-      await interaction.followUp({ content:"**"+sub.ign+"** submission → **"+sub.status+"**."+(sub.status==="approved"?" Stats applied & +5 pts.":""), ephemeral:true });
       return;
     }
 
-    // ── MOTM AI approve / choose different ────────────────
-    if (parts[0]==="motm" && (parts[1]==="approve"||parts[1]==="different")) {
+    // ── MOTM buttons (approve top-voted, AI, different, lock) ─
+    if (parts[0]==="motm" && (parts[1]==="approve"||parts[1]==="top"||parts[1]==="different"||parts[1]==="locktoggle")) {
       await interaction.deferUpdate();
       if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
       const reportId = parts[2];
       const report   = matchReportsFull.get(reportId);
       if (!report) { await interaction.followUp({ content:"❌ Report not found.", ephemeral:true }); return; }
-      if (parts[1]==="approve") {
+
+      // Approve top voted / approve AI MOTM
+      if (parts[1]==="approve" || parts[1]==="top") {
         const aiIgn = parts[3];
+        if (!aiIgn) { await interaction.followUp({ content:"❌ No candidate specified.", ephemeral:true }); return; }
         report.motm   = aiIgn;
         report.aiMotm = aiIgn;
         addStat(aiIgn, "motms", 1);
-        addPoints(aiIgn, 10);
-        await interaction.followUp({ content:"🏆 **"+aiIgn+"** confirmed as MOTM! +10 PJA Points awarded 🪙", ephemeral:true });
-      } else {
-        report.motmLocked = false;
-        await interaction.followUp({ content:"🔄 You can now use `/final-report report-id:"+reportId+" motm:PlayerName` to set a different MOTM.", ephemeral:true });
+        addPoints(aiIgn, 15);
+        addPointHistory(aiIgn, 15, "MOTM award ("+reportId+")");
+        motmVoteLocks.set(reportId, true); // lock voting after award
+        // DM the MOTM winner
+        try {
+          const winnerId = getDiscordIdForIgn(aiIgn);
+          if (winnerId) {
+            const winner = await client.users.fetch(winnerId).catch(()=>null);
+            if (winner) await winner.send({ embeds:[pjaEmbed("🏆 You're the Man of the Match!", 0xf59e0b)
+              .setDescription("🎉 Congratulations **"+aiIgn+"**! You've been awarded **Man of the Match** for the game against **"+report.opponent+"**!\n\n+**15 PJA Points** have been added to your balance 🪙")
+              .addFields({ name:"💰 New Balance", value:getPoints(aiIgn)+" pts", inline:true }, { name:"🎮 Match", value:"PJA vs "+report.opponent, inline:true })] }).catch(()=>{});
+          }
+        } catch(e) {}
+        await interaction.followUp({ content:"🏆 **"+aiIgn+"** confirmed as MOTM! +15 pts awarded. Voting locked.", ephemeral:true });
+      }
+
+      // Choose different
+      else if (parts[1]==="different") {
+        motmVoteLocks.set(reportId, false);
+        await interaction.followUp({ content:"🔄 Use `/final-report report-id:"+reportId+" motm:PlayerName` to set a different MOTM.", ephemeral:true });
+      }
+
+      // Lock / Unlock toggle
+      else if (parts[1]==="locktoggle") {
+        const isNowLocked = !motmVoteLocks.get(reportId);
+        motmVoteLocks.set(reportId, isNowLocked);
+        await interaction.followUp({ content:(isNowLocked?"🔒 MOTM voting **locked**":"🔓 MOTM voting **unlocked**")+" for **"+reportId+"**.", ephemeral:true });
       }
       return;
     }
@@ -3623,7 +4196,75 @@ client.on("interactionCreate", async (interaction) => {
       if (d.newcomerProfiles) { d.newcomerProfiles.forEach(p => { const {userId,...rest}=p; newcomerProfiles.set(userId, rest); }); }
       if (d.matchReports)     { d.matchReports.forEach(r => { const {id,...rest}=r; matchReportsFull.set(id, rest); }); }
       if (d.openSpots)        { d.openSpots.forEach(s => { openSpots.set(s.position, {count:s.count,notes:s.notes,updatedBy:s.updatedBy}); }); }
+      if (d.pointHistory)     { d.pointHistory.forEach(p => { pointHistory.set(p.ign.toLowerCase(), p.history||[]); }); }
+      if (d.discountTokens)   { d.discountTokens.forEach(t => { discountTokens.set(t.ign.toLowerCase(), {pct:t.pct, expiresAt:t.expiresAt}); }); }
+      if (d.luckyNumbers)     { d.luckyNumbers.forEach(l => { luckyNumbers.set(l.ign.toLowerCase(), l.number); }); }
       await interaction.followUp({ content:"✅ In-memory data restored from backup!\n• Warnings: "+(d.warnings?.length||0)+"\n• Points: "+(d.points?.length||0)+"\n• Local stats: "+(d.localStats?.length||0)+"\n• Newcomer profiles: "+(d.newcomerProfiles?.length||0)+"\n• Match reports: "+(d.matchReports?.length||0), ephemeral:true });
+      return;
+    }
+
+    // ── Shop request approve / deny (manager) ─────────────
+    if (parts[0]==="shopreq") {
+      await interaction.deferUpdate();
+      if (!isAdmin(member)) { await interaction.followUp({ content:"❌ No permission.", ephemeral:true }); return; }
+      const action = parts[1]; // approve | deny
+      const reqId  = parts[2];
+      const req    = shopRequests.get(reqId);
+      if (!req) { await interaction.followUp({ content:"❌ Shop request not found.", ephemeral:true }); return; }
+      if (req.status !== "pending") { await interaction.followUp({ content:"⚠️ Request already **"+req.status+"**.", ephemeral:true }); return; }
+
+      req.status     = action === "approve" ? "approved" : "denied";
+      req.reviewedBy = user.tag;
+
+      if (action === "approve") {
+        // Deduct points on approval
+        const currentPts = getPoints(req.ign);
+        if (currentPts < req.cost) {
+          await interaction.followUp({ content:"❌ **"+req.ign+"** only has **"+currentPts+" pts** — can't deduct **"+req.cost+" pts**. Denying.", ephemeral:true });
+          req.status = "denied";
+        } else {
+          const newBal = addPoints(req.ign, -req.cost);
+          addPointHistory(req.ign, -req.cost, "Shop: "+req.itemName+" approved by "+user.tag);
+
+          // Special logic for certain items
+          if (req.itemId === "lucky_number") {
+            const num = parseInt(req.targetArg) || Math.floor(Math.random()*100)+1;
+            luckyNumbers.set(req.ign.toLowerCase(), num);
+          }
+          if (req.itemId === "custom_command") {
+            // Note stored for manager to add manually; just record it
+          }
+
+          await interaction.followUp({ content:"✅ Shop request **"+reqId+"** approved for **"+req.ign+"**! -**"+req.cost+" pts** (new balance: **"+newBal+" pts**).", ephemeral:true });
+
+          // DM player
+          try {
+            const playerUser = await client.users.fetch(req.userId).catch(()=>null);
+            if (playerUser) await playerUser.send({ embeds:[pjaEmbed("✅ Shop Request Approved — "+req.itemName, 0x22c55e)
+              .setDescription("Your request for **"+req.itemName+"** has been **approved** by **"+user.tag+"**! 🎉")
+              .addFields(
+                { name:"🪙 Points Deducted", value:"-"+req.cost+" pts", inline:true },
+                { name:"💰 New Balance", value:newBal+" pts", inline:true },
+                ...(req.itemId==="lucky_number" ? [{ name:"🍀 Your Lucky Number", value:String(luckyNumbers.get(req.ign.toLowerCase())||"TBD"), inline:true }] : []),
+              )] }).catch(()=>{});
+          } catch(e) {}
+        }
+      } else {
+        // Denied — no point deduction
+        await interaction.followUp({ content:"❌ Shop request **"+reqId+"** denied for **"+req.ign+"**.", ephemeral:true });
+        try {
+          const playerUser = await client.users.fetch(req.userId).catch(()=>null);
+          if (playerUser) await playerUser.send({ embeds:[pjaEmbed("❌ Shop Request Denied — "+req.itemName, 0xef4444)
+            .setDescription("Your request for **"+req.itemName+"** was **denied** by **"+user.tag+"**.\nYour points were **not** deducted. Contact a manager if you have questions.")] }).catch(()=>{});
+        } catch(e) {}
+      }
+
+      // Disable buttons on the request embed
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("shopreq_approve_"+reqId).setLabel("✅ Approve").setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId("shopreq_deny_"+reqId).setLabel("❌ Deny").setStyle(ButtonStyle.Danger).setDisabled(true),
+      );
+      await interaction.editReply({ components:[disabledRow] });
       return;
     }
 
@@ -3731,7 +4372,7 @@ client.on("interactionCreate", async (interaction) => {
 
       const myIgn  = getIgnForUser(user.id) || user.username;
       const subKey = reportId + "_" + user.id;
-      const posType = { GK:"gk", DEF:"def", MID:"mid", WING:"wing", ST:"st", Utility:"util" }[pos] || "util";
+      const posType = { GK:"gk", DEF:"def", MID:"mid", LM:"mid", RM:"mid", WING:"wing", ST:"st", Utility:"util" }[pos] || "util";
 
       // ── Safe field getter ──────────────────────────────────
       const tryGet  = (id) => { try { return interaction.fields.getTextInputValue(id) || ""; } catch(e) { return ""; } };
@@ -3912,6 +4553,71 @@ client.on("interactionCreate", async (interaction) => {
           ] });
         }
       } catch(e) {}
+      return;
+    }
+
+    // ── Self-Report Edit Modal (manager edits submission) ─────
+    if (customId.startsWith("subedit_modal_")) {
+      await interaction.deferReply({ ephemeral: true });
+      const withoutPfx = customId.replace("subedit_modal_", "");
+      const uidx       = withoutPfx.indexOf("_");
+      const reportId   = uidx >= 0 ? withoutPfx.substring(0, uidx) : withoutPfx;
+      const userId     = uidx >= 0 ? withoutPfx.substring(uidx + 1) : "";
+      const subKey     = reportId + "_" + userId;
+      const sub        = selfReports.get(subKey);
+      if (!sub) { await interaction.editReply("❌ Submission not found."); return; }
+
+      const tryGet = (id) => { try { return interaction.fields.getTextInputValue(id)||""; } catch(e) { return ""; } };
+
+      // Snapshot original before edit
+      const originalStats = { goals:sub.goals, assists:sub.assists, saves:sub.saves, cleanSheet:sub.cleanSheet };
+
+      const editGoals  = tryGet("edit_goals").trim();
+      const editAsst   = tryGet("edit_assists").trim();
+      const editSaves  = tryGet("edit_saves").trim();
+      const editCS     = tryGet("edit_cleansheet").trim();
+      const editReason = tryGet("edit_reason").trim();
+
+      if (editGoals  !== "") sub.goals      = editGoals;
+      if (editAsst   !== "") sub.assists    = editAsst;
+      if (editSaves  !== "") sub.saves      = editSaves;
+      if (editCS     !== "") sub.cleanSheet = editCS;
+
+      sub.editedByManager = true;
+      sub.editedBy        = user.tag;
+      sub.editReason      = editReason;
+      sub.editedAt        = new Date().toISOString();
+
+      addSubHistory(subKey, "edited by manager", user.tag, editReason, { goals:sub.goals, assists:sub.assists, saves:sub.saves, cleanSheet:sub.cleanSheet });
+
+      // DM player about the edit
+      try {
+        const targetUser = await client.users.fetch(userId).catch(()=>null);
+        if (targetUser) {
+          const changes = [];
+          if (editGoals !== "")  changes.push("⚽ Goals: "+originalStats.goals+" → "+sub.goals);
+          if (editAsst  !== "")  changes.push("🎯 Assists: "+originalStats.assists+" → "+sub.assists);
+          if (editSaves !== "")  changes.push("🧤 Saves: "+originalStats.saves+" → "+sub.saves);
+          if (editCS    !== "")  changes.push("🛡️ Clean Sheet: "+originalStats.cleanSheet+" → "+sub.cleanSheet);
+          await targetUser.send({ embeds:[pjaEmbed("✏️ Stats Edited by Manager", 0xf59e0b)
+            .setDescription("A manager has **edited** your submission for **PJA vs "+sub.matchOpponent+"**.")
+            .addFields(
+              { name:"✏️ Editor", value:user.tag, inline:true },
+              { name:"📝 Reason", value:editReason||"—", inline:false },
+              ...(changes.length ? [{ name:"📊 Changes", value:changes.join("\n"), inline:false }] : []),
+              { name:"ℹ️ Note", value:"Your submission still requires manager approval.", inline:false },
+            )] }).catch(()=>{});
+        }
+      } catch(e) {}
+
+      await interaction.editReply({ embeds:[pjaEmbed("✅ Submission Edited", 0x22c55e)
+        .setDescription("**"+sub.ign+"**'s submission has been edited and DM sent.")
+        .addFields(
+          { name:"⚽ Goals",    value:String(sub.goals||"—"),   inline:true },
+          { name:"🎯 Assists",  value:String(sub.assists||"—"), inline:true },
+          { name:"🧤 Saves",    value:String(sub.saves||"—"),   inline:true },
+          { name:"📝 Reason",   value:editReason||"—",          inline:false },
+        )] });
       return;
     }
 
