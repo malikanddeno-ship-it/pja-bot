@@ -970,6 +970,17 @@ const commands = [
   new SlashCommandBuilder().setName("motm-results").setDescription("View MOTM vote results for a match")
     .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true)),
 
+  // /custom-commands
+  new SlashCommandBuilder().setName("custom-commands").setDescription("View, add, or remove custom bot commands [Manager: add/remove]")
+    .addStringOption(o => o.setName("action").setDescription("What to do").setRequired(false)
+      .addChoices(
+        { name:"List all",    value:"list"   },
+        { name:"Add new",     value:"add"    },
+        { name:"Remove one",  value:"remove" },
+      ))
+    .addStringOption(o => o.setName("trigger").setDescription("Trigger word (e.g. !hype) — required for add/remove").setRequired(false))
+    .addStringOption(o => o.setName("reply").setDescription("Bot reply text — required for add").setRequired(false)),
+
   // ── MATCH REPORT SYSTEM ───────────────────────────────────────
 
   new SlashCommandBuilder().setName("getting-started").setDescription("New to PJA? Fill out your team profile here"),
@@ -1358,8 +1369,34 @@ client.on("messageCreate", async (message) => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// ── SLASH COMMAND HANDLER ─────────────────────────────────────
+// ── GUILD MESSAGE HANDLER — custom command triggers ───────────
 // ══════════════════════════════════════════════════════════════
+client.on("messageCreate", async (message) => {
+  // Only guild messages, not from bots
+  if (message.author.bot) return;
+  if (!message.guild)     return;
+
+  const content = message.content.trim();
+  if (!content.startsWith("!")) return;
+
+  // Find matching trigger (case-insensitive, exact word match)
+  const trigger = content.split(/\s+/)[0].toLowerCase();
+  const cmd = customCommandsMap.get(trigger);
+  if (!cmd) return;
+
+  try {
+    await message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setDescription(cmd.reply)
+          .setColor(0x2563eb)
+          .setFooter({ text: "Custom command by " + cmd.ign + " | Project Azure (PJA)" })
+      ]
+    });
+  } catch (err) {
+    console.error("[CustomCmd] Failed to reply to trigger '" + trigger + "':", err.message);
+  }
+});
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   const { commandName, user, member } = interaction;
@@ -2967,7 +3004,67 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    // ── /submission-history ────────────────────────────────
+    // ── /custom-commands ───────────────────────────────────
+    if (commandName === "custom-commands") {
+      await interaction.deferReply({ ephemeral: true });
+      const action  = interaction.options.getString("action")  || "list";
+      const trigger = (interaction.options.getString("trigger") || "").trim().toLowerCase();
+      const reply   = (interaction.options.getString("reply")   || "").trim();
+
+      // ── LIST ───────────────────────────────────────────────
+      if (action === "list") {
+        if (customCommandsMap.size === 0) {
+          await interaction.editReply("📭 No custom commands registered yet.\nPlayers can buy **Custom Command Reply** from `/shop` to add one.");
+          return;
+        }
+        const lines = [...customCommandsMap.entries()].map(([t, c]) =>
+          "• **`"+t+"`** → "+c.reply.substring(0,80)+(c.reply.length>80?"…":"")+"\n  _Added by "+c.ign+" | Approved by "+c.createdBy+"_"
+        ).join("\n\n");
+        await interaction.editReply({ embeds:[pjaEmbed("💬 Custom Commands ("+customCommandsMap.size+")", 0x2563eb)
+          .setDescription(lines)
+          .setFooter({ text:"Players say !trigger in any channel to use | Project Azure (PJA)" })] });
+        return;
+      }
+
+      // ── ADD (manager only) ─────────────────────────────────
+      if (action === "add") {
+        if (!isAdmin(member)) { await interaction.editReply("❌ Only Managers can manually add custom commands."); return; }
+        if (!trigger) { await interaction.editReply("❌ Provide a `trigger` (e.g. `!hype`)."); return; }
+        if (!reply)   { await interaction.editReply("❌ Provide a `reply` text."); return; }
+        const safeT = trigger.startsWith("!") ? trigger : "!" + trigger;
+        customCommandsMap.set(safeT, { reply, createdBy: user.tag, ign: user.tag, createdAt: new Date().toISOString() });
+        await interaction.editReply({ embeds:[pjaEmbed("✅ Custom Command Added", 0x22c55e)
+          .addFields(
+            { name:"💬 Trigger", value:"`"+safeT+"`", inline:true },
+            { name:"📝 Reply",   value:reply,          inline:false },
+          )] });
+        return;
+      }
+
+      // ── REMOVE (manager only) ──────────────────────────────
+      if (action === "remove") {
+        if (!isAdmin(member)) { await interaction.editReply("❌ Only Managers can remove custom commands."); return; }
+        if (!trigger) { await interaction.editReply("❌ Provide the `trigger` to remove (e.g. `!hype`)."); return; }
+        const safeT = trigger.startsWith("!") ? trigger : "!" + trigger;
+        if (!customCommandsMap.has(safeT)) {
+          await interaction.editReply("❌ No custom command found for `"+safeT+"`.");
+          return;
+        }
+        const old = customCommandsMap.get(safeT);
+        customCommandsMap.delete(safeT);
+        await interaction.editReply({ embeds:[pjaEmbed("🗑️ Custom Command Removed", 0xef4444)
+          .setDescription("**`"+safeT+"`** has been removed.")
+          .addFields(
+            { name:"📝 Was",     value:old.reply,      inline:false },
+            { name:"👤 Owned by",value:old.ign,        inline:true  },
+            { name:"🎙️ Removed by", value:user.tag,   inline:true  },
+          )] });
+        return;
+      }
+
+      await interaction.editReply("❓ Use `action:list`, `action:add`, or `action:remove`.");
+      return;
+    }
     if (commandName === "submission-history") {
       await interaction.deferReply({ ephemeral: true });
       if (!isAdmin(member)) { await interaction.editReply("❌ Managers only."); return; }
@@ -4232,7 +4329,26 @@ client.on("interactionCreate", async (interaction) => {
             luckyNumbers.set(req.ign.toLowerCase(), num);
           }
           if (req.itemId === "custom_command") {
-            // Note stored for manager to add manually; just record it
+            // Parse the note: "!trigger → reply" or "!trigger: reply" or "!trigger reply"
+            const raw = req.note && req.note !== "None" ? req.note : req.targetArg || "";
+            const sepMatch = raw.match(/^(!?\S+)\s*(?:→|->|:|—)\s*(.+)$/s);
+            let trigger = "", reply = "";
+            if (sepMatch) {
+              trigger = sepMatch[1].trim().toLowerCase();
+              reply   = sepMatch[2].trim();
+            } else {
+              // No separator — treat first word as trigger, rest as reply
+              const parts2 = raw.trim().split(/\s+/);
+              trigger = (parts2[0] || "").toLowerCase();
+              reply   = parts2.slice(1).join(" ") || "(no reply set — manager must update)";
+            }
+            if (!trigger.startsWith("!")) trigger = "!" + trigger;
+            if (trigger && reply) {
+              customCommandsMap.set(trigger, { reply, createdBy: user.tag, ign: req.ign, createdAt: new Date().toISOString() });
+            }
+            // Store parsed values back on req so the DM can show them
+            req.parsedTrigger = trigger;
+            req.parsedReply   = reply;
           }
 
           await interaction.followUp({ content:"✅ Shop request **"+reqId+"** approved for **"+req.ign+"**! -**"+req.cost+" pts** (new balance: **"+newBal+" pts**).", ephemeral:true });
@@ -4246,6 +4362,11 @@ client.on("interactionCreate", async (interaction) => {
                 { name:"🪙 Points Deducted", value:"-"+req.cost+" pts", inline:true },
                 { name:"💰 New Balance", value:newBal+" pts", inline:true },
                 ...(req.itemId==="lucky_number" ? [{ name:"🍀 Your Lucky Number", value:String(luckyNumbers.get(req.ign.toLowerCase())||"TBD"), inline:true }] : []),
+                ...(req.itemId==="custom_command" && req.parsedTrigger ? [
+                  { name:"💬 Your Trigger", value:"`"+req.parsedTrigger+"`", inline:true },
+                  { name:"💬 Bot Reply",    value:req.parsedReply,           inline:false },
+                  { name:"ℹ️ How to use",  value:"Type `"+req.parsedTrigger+"` in any channel and the bot will reply automatically!", inline:false },
+                ] : []),
               )] }).catch(()=>{});
           } catch(e) {}
         }
