@@ -84,6 +84,59 @@ function linkAccount(discordId, ign) {
   if (oldIgn) ignToDiscordId.delete(oldIgn.toLowerCase());
   linkedAccounts.set(discordId, ign);
   ignToDiscordId.set(ign.toLowerCase(), discordId);
+
+  // ── Persist to API so links survive bot restarts ──────────
+  // We use the discordId as a stable lookup key.
+  // Strategy: try PATCH first (update existing row), if 404 do POST (new row).
+  // Fire-and-forget — never block the caller.
+  (async () => {
+    try {
+      // Search for an existing row with this discordId
+      const existing = await fetch(WEBSITE_API + "pja_links?search=" + encodeURIComponent(discordId) + "&limit=5");
+      const json     = existing.ok ? await existing.json() : { data: [] };
+      const row      = (json.data || []).find(r => r.discordId === discordId);
+      if (row && row.id) {
+        // Update existing row
+        await fetch(WEBSITE_API + "pja_links/" + row.id, {
+          method:  "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ ign }),
+        });
+      } else {
+        // Create new row
+        await fetch(WEBSITE_API + "pja_links", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ discordId, ign }),
+        });
+      }
+    } catch (e) {
+      console.error("[linkAccount] persist error:", e.message);
+    }
+  })();
+}
+
+// ── Load all persisted links from API on startup ──────────────
+// Populates linkedAccounts and ignToDiscordId from pja_links table.
+// Called once inside client.once("ready") so links survive restarts.
+async function loadLinks() {
+  try {
+    const res  = await fetch(WEBSITE_API + "pja_links?limit=500");
+    if (!res.ok) { console.warn("[loadLinks] API returned", res.status); return; }
+    const json = await res.json();
+    const rows = json.data || [];
+    let count  = 0;
+    for (const row of rows) {
+      if (row.discordId && row.ign) {
+        linkedAccounts.set(row.discordId, row.ign);
+        ignToDiscordId.set(row.ign.toLowerCase(), row.discordId);
+        count++;
+      }
+    }
+    console.log("[loadLinks] Restored " + count + " account link(s) from API.");
+  } catch (e) {
+    console.error("[loadLinks] Failed to load links:", e.message);
+  }
 }
 
 function getIgnForUser(discordId) {
@@ -134,6 +187,99 @@ const customCommandsMap = new Map(); // trigger.toLowerCase() → { reply, creat
 const shopRequests      = new Map(); // requestId → { userId, ign, itemId, itemName, note, status, reviewedBy, createdAt }
 const motmVoteLocks     = new Map(); // reportId → boolean (locked=true)
 const submissionHistory = new Map(); // subKey → [{ event, by, reason, stats, timestamp }]
+
+// ── FUTURE WEBSITE SUPPORT — SUBMISSION TOKEN STORE ──────────
+// When the website is built, players will use a unique URL:
+//   https://SITE_URL/match-report?report=REPORT_ID&player=PLAYER_ID&token=TOKEN
+// For now, /self-report (Discord) is still the only input method.
+// These Maps just make that migration a 1-day job instead of a rewrite.
+//
+// playerSubmissionTokens: playerId (uuid) → token record
+// Each record links a player's IGN to a specific match report,
+// holds a secure token for URL auth, and tracks whether they've submitted.
+const playerSubmissionTokens = new Map();
+// reportPlayerIndex: reportId → Map(ign.toLowerCase() → playerId)
+// Fast reverse-lookup: given a report + IGN, what's their playerId?
+const reportPlayerIndex = new Map();
+
+// The live site URL — change this env var when the website is deployed.
+// Used to build player submission links. No website needed yet.
+const SITE_URL = process.env.SITE_URL || "https://my-pja-site.com";
+
+// ── TOKEN HELPERS ─────────────────────────────────────────────
+// Generate a cryptographically safe random token string
+function makeToken() {
+  // 32 random hex chars — safe enough for a match submission link
+  return [...Array(32)].map(() => Math.floor(Math.random() * 16).toString(16)).join("");
+}
+
+// Create (or retrieve existing) submission token for a player + report.
+// Returns { playerId, token, url } — url is the future website link.
+// Idempotent: calling twice for the same ign+reportId returns the same record.
+function generatePlayerToken(reportId, ign) {
+  // Check if one already exists for this report+ign
+  const idx = reportPlayerIndex.get(reportId);
+  if (idx) {
+    const existingPlayerId = idx.get(ign.toLowerCase());
+    if (existingPlayerId) {
+      const record = playerSubmissionTokens.get(existingPlayerId);
+      if (record) return { playerId: existingPlayerId, token: record.token, url: buildSubmissionUrl(reportId, existingPlayerId, record.token) };
+    }
+  }
+
+  // Create new
+  const playerId = makeId();   // reuse existing makeId() — same uuid format
+  const token    = makeToken();
+  const record   = {
+    playerId,
+    reportId,
+    ign,
+    token,
+    used:        false,   // true once they submit (Discord or website)
+    submittedAt: null,    // ISO string when submitted
+    source:      null,    // "discord" | "website" — filled on submission
+    createdAt:   new Date().toISOString(),
+    // Future website fields — null until site is live
+    websiteUrl:  buildSubmissionUrl(reportId, playerId, token),
+    ipAddress:   null,    // website can populate this for audit
+    userAgent:   null,    // website can populate this for audit
+  };
+
+  playerSubmissionTokens.set(playerId, record);
+
+  // Update reverse index
+  if (!reportPlayerIndex.has(reportId)) reportPlayerIndex.set(reportId, new Map());
+  reportPlayerIndex.get(reportId).set(ign.toLowerCase(), playerId);
+
+  return { playerId, token, url: record.websiteUrl };
+}
+
+// Build the full submission URL for a player.
+// This is what will be sent when the website is ready.
+// Until then, it's stored as a placeholder on every submission.
+function buildSubmissionUrl(reportId, playerId, token) {
+  return `${SITE_URL}/match-report?report=${reportId}&player=${playerId}&token=${token}`;
+}
+
+// Validate a token when a website submission comes in.
+// Returns the token record if valid, null if invalid/used/wrong report.
+function validateSubmissionToken(reportId, playerId, token) {
+  const record = playerSubmissionTokens.get(playerId);
+  if (!record)                        return null; // unknown playerId
+  if (record.reportId !== reportId)   return null; // wrong report
+  if (record.token    !== token)      return null; // bad token
+  if (record.used)                    return null; // already submitted
+  return record;
+}
+
+// Mark a token as used after successful submission.
+function consumeSubmissionToken(playerId, source) {
+  const record = playerSubmissionTokens.get(playerId);
+  if (!record) return;
+  record.used        = true;
+  record.submittedAt = new Date().toISOString();
+  record.source      = source || "discord";
+}
 
 function addPointHistory(ign, amount, reason) {
   const key = ign.toLowerCase();
@@ -747,7 +893,8 @@ const commands = [
     .addStringOption(o => o.setName("assists").setDescription("Assisters (comma separated)").setRequired(false))
     .addStringOption(o => o.setName("saves").setDescription("Saves (comma separated)").setRequired(false))
     .addStringOption(o => o.setName("motm").setDescription("Man of the Match").setRequired(false))
-    .addStringOption(o => o.setName("notes").setDescription("Extra notes").setRequired(false)),
+    .addStringOption(o => o.setName("notes").setDescription("Extra notes").setRequired(false))
+    .addStringOption(o => o.setName("players").setDescription("Comma-separated IGNs who played (pre-generates submission tokens for future website links)").setRequired(false)),
 
   new SlashCommandBuilder().setName("leaderboard").setDescription("View PJA player leaderboard")
     .addStringOption(o => o.setName("category").setDescription("Category").setRequired(false)
@@ -981,6 +1128,22 @@ const commands = [
     .addStringOption(o => o.setName("trigger").setDescription("Trigger word (e.g. !hype) — required for add/remove").setRequired(false))
     .addStringOption(o => o.setName("reply").setDescription("Bot reply text — required for add").setRequired(false)),
 
+  // /send-report-links — future website readiness
+  // Sends each registered player their personal submission link.
+  // Currently shows Discord-only notice since site isn't built yet.
+  // When SITE_URL is set, this will send real clickable links.
+  new SlashCommandBuilder().setName("send-report-links").setDescription("Send submission links to players for a match [Manager only]")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true))
+    .addStringOption(o => o.setName("mode").setDescription("How to send").setRequired(false)
+      .addChoices(
+        { name:"Post in channel (visible to all)", value:"channel" },
+        { name:"DM each player individually",      value:"dm"      },
+      )),
+
+  // /report-status — see who has/hasn't submitted for a match
+  new SlashCommandBuilder().setName("report-status").setDescription("See submission status for every player in a match [Manager only]")
+    .addStringOption(o => o.setName("report-id").setDescription("Match report ID").setRequired(true)),
+
   // ── MATCH REPORT SYSTEM ───────────────────────────────────────
 
   new SlashCommandBuilder().setName("getting-started").setDescription("New to PJA? Fill out your team profile here"),
@@ -1138,6 +1301,12 @@ registerCommands().then(() => { client.login(TOKEN); }).catch(() => { client.log
 client.once("ready", async () => {
   console.log("Logged in as: " + client.user.tag);
   try { client.user.setActivity("PJA Bot | /tryout", { type: 3 }); } catch(e) {}
+
+  // ── Restore persisted account links ───────────────────────
+  // Must run before any commands are handled so linked IGNs
+  // are immediately available without players running /link again.
+  await loadLinks();
+
   console.log("Bot fully ready!");
 
   setMatchHandler(async (data) => {
@@ -1526,7 +1695,26 @@ client.on("interactionCreate", async (interaction) => {
         motm, notes, date: new Date().toISOString(),
         postedBy: user.tag, players: [], status: "active",
         motmLocked: false, finalized: false, aiMotm: null,
+        // ── Future website readiness ───────────────────────────
+        // playerTokens: ign.toLowerCase() → { playerId, token, url }
+        // Populated now if `players` option provided, or lazily via
+        // generatePlayerToken() when /send-report-links is used later.
+        playerTokens: {},
+        // websiteEnabled: flip to true when site is live and you want
+        // /send-report-links to send real URLs instead of Discord instructions
+        websiteEnabled: false,
       });
+
+      // Pre-generate submission tokens for every listed player
+      const playersRaw = interaction.options.getString("players") || "";
+      const playerList = playersRaw.split(",").map(s => s.trim()).filter(Boolean);
+      if (playerList.length > 0) {
+        const report = matchReportsFull.get(reportId);
+        for (const ign of playerList) {
+          const { playerId, token, url } = generatePlayerToken(reportId, ign);
+          report.playerTokens[ign.toLowerCase()] = { playerId, token, url, ign };
+        }
+      }
       try { await apiPost("match_reports", { id:reportId, opponent, score, result, scorers, assists, saves, motm, notes, date:new Date().toISOString(), source:"discord" }); } catch(e) {}
       const resultColor = result==="Win"?0x22c55e:result==="Loss"?0xef4444:0xf59e0b;
       const resultIcon  = result==="Win"?"✅":result==="Loss"?"❌":"🟡";
@@ -2664,7 +2852,19 @@ client.on("interactionCreate", async (interaction) => {
           if (motmNominee.toLowerCase() !== myIgn.toLowerCase() && !motmVoteLocks.get(reportId)) {
             const voteKey = reportId + "_" + user.id;
             const prev    = motmVotes.get(voteKey);
-            motmVotes.set(voteKey, { nominee:motmNominee, reason:motmReason, voterId:user.id, voterIgn:myIgn, changed:!!prev, changedFrom:prev?.nominee||null, timestamp:new Date().toISOString() });
+            // Resolve playerId for the voter (may not exist yet — that's fine)
+            const voterPlayerId = reportPlayerIndex.get(reportId)?.get(myIgn.toLowerCase()) || null;
+            motmVotes.set(voteKey, {
+              nominee:       motmNominee,
+              reason:        motmReason,
+              voterId:       user.id,
+              voterIgn:      myIgn,
+              voterPlayerId, // links to playerSubmissionTokens — null until token generated
+              source:        "discord",  // "discord" | "website" — same field future site sets
+              changed:       !!prev,
+              changedFrom:   prev?.nominee || null,
+              timestamp:     new Date().toISOString(),
+            });
           }
         }
 
@@ -2872,9 +3072,20 @@ client.on("interactionCreate", async (interaction) => {
       if (motmVoteLocks.get(reportId)) { await interaction.editReply("🔒 MOTM voting for this match is **locked**."); return; }
       const myIgn = getIgnForUser(user.id) || user.username;
       if (voteFor.toLowerCase() === myIgn.toLowerCase()) { await interaction.editReply("❌ You cannot vote for yourself."); return; }
-      const voteKey = reportId + "_" + user.id;
-      const prev    = motmVotes.get(voteKey);
-      motmVotes.set(voteKey, { nominee:voteFor, reason:"", voterId:user.id, voterIgn:myIgn, changed:!!prev, changedFrom:prev?.nominee||null, timestamp:new Date().toISOString() });
+      const voteKey       = reportId + "_" + user.id;
+      const prev          = motmVotes.get(voteKey);
+      const voterPlayerId = reportPlayerIndex.get(reportId)?.get(myIgn.toLowerCase()) || null;
+      motmVotes.set(voteKey, {
+        nominee:       voteFor,
+        reason:        "",
+        voterId:       user.id,
+        voterIgn:      myIgn,
+        voterPlayerId,
+        source:        "discord",
+        changed:       !!prev,
+        changedFrom:   prev?.nominee || null,
+        timestamp:     new Date().toISOString(),
+      });
       const allVotes = [...motmVotes.entries()].filter(([k]) => k.startsWith(reportId + "_"));
       const tally    = {};
       allVotes.forEach(([,v]) => { tally[v.nominee] = (tally[v.nominee]||0) + 1; });
@@ -3063,6 +3274,171 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       await interaction.editReply("❓ Use `action:list`, `action:add`, or `action:remove`.");
+      return;
+    }
+
+    // ── /send-report-links ─────────────────────────────────
+    // Future-ready: when websiteEnabled=true on the report, sends real URLs.
+    // Until then, shows Discord instructions with the report ID.
+    if (commandName === "send-report-links") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ Managers only."); return; }
+
+      const reportId = interaction.options.getString("report-id").toUpperCase();
+      const mode     = interaction.options.getString("mode") || "channel";
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Report **"+reportId+"** not found."); return; }
+
+      // Collect all players who have tokens for this report
+      const idx = reportPlayerIndex.get(reportId);
+      if (!idx || idx.size === 0) {
+        await interaction.editReply(
+          "⚠️ No player tokens exist for **"+reportId+"** yet.\n\n" +
+          "To pre-generate tokens, use `/match-report players:PlayerA,PlayerB,...` when creating the report.\n" +
+          "Or players can just use `/self-report report-id:"+reportId+"` directly on Discord."
+        );
+        return;
+      }
+
+      const siteReady = report.websiteEnabled && SITE_URL !== "https://my-pja-site.com";
+
+      const lines = [];
+      for (const [ign, playerId] of idx.entries()) {
+        const rec = playerSubmissionTokens.get(playerId);
+        if (!rec) continue;
+        const statusIcon = rec.used ? "✅" : "⏳";
+        if (siteReady) {
+          // Real website link — use when site is live
+          lines.push(`${statusIcon} **${rec.ign}** — [Click to submit stats](${rec.websiteUrl})`);
+        } else {
+          // Discord-only mode (current)
+          lines.push(`${statusIcon} **${rec.ign}** — Use \`/self-report report-id:${reportId}\` on Discord`);
+        }
+      }
+
+      const embed = pjaEmbed(
+        siteReady ? "🔗 Submission Links — "+reportId : "📊 Submission Instructions — "+reportId,
+        siteReady ? 0x22c55e : 0x2563eb
+      )
+        .setDescription(
+          siteReady
+            ? "Website is live! Send each player their personal link:"
+            : "**Website not live yet** — players submit via Discord.\n" +
+              "Tell them: **/self-report report-id:`"+reportId+"`**\n\n" +
+              "When the website is ready, set `SITE_URL` env var and flip `report.websiteEnabled = true` to send real links automatically."
+        )
+        .addFields({ name: "👥 Players ("+lines.length+")", value: lines.join("\n") || "None", inline: false })
+        .setFooter({ text: "✅ = submitted | ⏳ = pending | Project Azure (PJA)" });
+
+      if (mode === "channel") {
+        await interaction.channel.send({ embeds: [embed] });
+        await interaction.editReply("✅ Posted submission instructions in channel.");
+      } else {
+        // DM each player individually
+        let dmCount = 0;
+        for (const [, playerId] of idx.entries()) {
+          const rec = playerSubmissionTokens.get(playerId);
+          if (!rec || rec.used) continue;
+          const discordId = getDiscordIdForIgn(rec.ign);
+          if (!discordId) continue;
+          try {
+            const playerUser = await client.users.fetch(discordId).catch(()=>null);
+            if (!playerUser) continue;
+            if (siteReady) {
+              await playerUser.send({ embeds: [pjaEmbed("📊 Submit Your Match Stats — PJA vs "+report.opponent, 0x2563eb)
+                .setDescription("A manager has asked you to submit your stats for today's match!")
+                .addFields(
+                  { name:"🔗 Your personal link", value:"[Click here to submit]("+rec.websiteUrl+")", inline:false },
+                  { name:"⚠️ Note", value:"This link is unique to you. Don't share it.", inline:false },
+                )] });
+            } else {
+              await playerUser.send({ embeds: [pjaEmbed("📊 Submit Your Match Stats — PJA vs "+report.opponent, 0x2563eb)
+                .setDescription("A manager has asked you to submit your stats for today's match!")
+                .addFields(
+                  { name:"📱 How to submit", value:"Use `/self-report report-id:**"+reportId+"**` in the PJA Discord server.", inline:false },
+                  { name:"⚠️ Note", value:"Choose your position, then fill in your stats.", inline:false },
+                )] });
+            }
+            dmCount++;
+          } catch(e) {}
+        }
+        await interaction.editReply("✅ DMs sent to **"+dmCount+"** player(s). Players not linked were skipped.");
+      }
+      return;
+    }
+
+    // ── /report-status ─────────────────────────────────────
+    // Shows every player token for a report and whether they've submitted.
+    // Works from day one — no website needed.
+    if (commandName === "report-status") {
+      await interaction.deferReply({ ephemeral: true });
+      if (!isAdmin(member)) { await interaction.editReply("❌ Managers only."); return; }
+
+      const reportId = interaction.options.getString("report-id").toUpperCase();
+      const report   = matchReportsFull.get(reportId);
+      if (!report) { await interaction.editReply("❌ Report **"+reportId+"** not found."); return; }
+
+      // Collect all submissions for this report
+      const allSubs = [...selfReports.entries()]
+        .filter(([k]) => k.startsWith(reportId+"_"))
+        .map(([,v]) => v);
+
+      // Collect all token records for this report
+      const idx = reportPlayerIndex.get(reportId) || new Map();
+
+      // Build unified status table
+      const rows = [];
+
+      // Players with pre-generated tokens
+      for (const [ign, playerId] of idx.entries()) {
+        const rec = playerSubmissionTokens.get(playerId);
+        const sub = allSubs.find(s => (s.ign||"").toLowerCase() === ign);
+        const statusEmoji = sub
+          ? (sub.status==="approved"?"✅":sub.status==="denied"?"❌":sub.status==="needs_proof"?"📎":"⏳")
+          : (rec?.used ? "⏳" : "🔲");
+        rows.push({
+          ign: rec?.ign || ign,
+          status: sub ? sub.status : (rec?.used ? "submitted (unlinked?)" : "not submitted"),
+          source: sub?.source || (rec?.used ? "discord" : "—"),
+          statusEmoji,
+          position: sub?.position || "—",
+          points: sub?.pointsAwarded ? "✅ awarded" : "—",
+        });
+      }
+
+      // Players who submitted via Discord but weren't pre-listed
+      for (const sub of allSubs) {
+        const alreadyListed = rows.find(r => r.ign.toLowerCase() === (sub.ign||"").toLowerCase());
+        if (!alreadyListed) {
+          const statusEmoji = sub.status==="approved"?"✅":sub.status==="denied"?"❌":sub.status==="needs_proof"?"📎":"⏳";
+          rows.push({
+            ign: sub.ign, status: sub.status, source: sub.source||"discord",
+            statusEmoji, position: sub.position||"—",
+            points: sub.pointsAwarded ? "✅ awarded" : "—",
+          });
+        }
+      }
+
+      const submitted  = rows.filter(r => r.status !== "not submitted").length;
+      const pending    = rows.filter(r => r.status === "pending").length;
+      const approved   = rows.filter(r => r.status === "approved").length;
+      const notYet     = rows.filter(r => r.status === "not submitted").length;
+
+      const lines = rows.map(r =>
+        `${r.statusEmoji} **${r.ign}** — ${r.status} | ${r.position} | src: ${r.source} | pts: ${r.points}`
+      ).join("\n");
+
+      const embed = pjaEmbed("📋 Report Status — "+reportId, 0x2563eb)
+        .setDescription("PJA vs **"+report.opponent+"** | "+report.result+" "+report.score)
+        .addFields(
+          { name:"📊 Summary", value:`✅ Approved: **${approved}** | ⏳ Pending: **${pending}** | 🔲 Not submitted: **${notYet}** | Total tracked: **${rows.length}**`, inline:false },
+          { name:"👥 Players", value:lines||"No players tracked yet.", inline:false },
+          { name:"🌐 Website Ready?", value:report.websiteEnabled ? "✅ Yes — links active" : "❌ Not yet — Discord only", inline:true },
+          { name:"🔑 Tokens Generated", value:idx.size+" player(s)", inline:true },
+        )
+        .setFooter({ text:"Use /send-report-links to notify players | Project Azure (PJA)" });
+
+      await interaction.editReply({ embeds:[embed] });
       return;
     }
     if (commandName === "submission-history") {
@@ -4483,10 +4859,24 @@ client.on("interactionCreate", async (interaction) => {
         const apiReports = await apiGet("match_reports").catch(() => []);
         const apiReport  = apiReports.find(r => (r.id || "").toUpperCase() === reportId);
         if (apiReport) {
-          report = { ...apiReport, players: [], motmLocked: false, finalized: false };
+          report = {
+            ...apiReport,
+            players:        [],
+            motmLocked:     false,
+            finalized:      false,
+            // ── website-readiness fields (ensure always present) ─
+            playerTokens:   apiReport.playerTokens   || {},
+            websiteEnabled: apiReport.websiteEnabled || false,
+          };
           matchReportsFull.set(reportId, report);
         } else {
-          report = { id: reportId, opponent: "Unknown", score: "?", result: "?", date: new Date().toDateString(), players: [], motmLocked: false, finalized: false };
+          report = {
+            id: reportId, opponent: "Unknown", score: "?", result: "?",
+            date: new Date().toDateString(), players: [], motmLocked: false, finalized: false,
+            // ── website-readiness fields (always present even on fallback) ─
+            playerTokens:   {},
+            websiteEnabled: false,
+          };
           matchReportsFull.set(reportId, report);
         }
       }
@@ -4510,6 +4900,20 @@ client.on("interactionCreate", async (interaction) => {
       const notesRaw  = tryGet("sr_notes");
 
       // ── Build base sub object ──────────────────────────────
+      // Every submission gets a stable submissionId + source tag so the
+      // review queue and future website both reference the same record.
+      const existingToken = reportPlayerIndex.get(reportId)?.get(myIgn.toLowerCase());
+      const tokenRecord   = existingToken ? playerSubmissionTokens.get(existingToken) : null;
+
+      // If there's no pre-generated token (player not listed upfront),
+      // generate one now so the record is complete from day one.
+      const { playerId, token, url } = tokenRecord
+        ? { playerId: tokenRecord.playerId, token: tokenRecord.token, url: tokenRecord.websiteUrl }
+        : generatePlayerToken(reportId, myIgn);
+
+      // Mark token as used (Discord path)
+      consumeSubmissionToken(playerId, "discord");
+
       const sub = {
         reportId,
         userId:        user.id,
@@ -4518,6 +4922,16 @@ client.on("interactionCreate", async (interaction) => {
         matchOpponent: report.opponent || "Unknown",
         status:        "pending",
         submittedAt:   new Date().toISOString(),
+        // ── Stable identity fields ──────────────────────────
+        // These are the same whether submission comes from Discord or website.
+        submissionId:  makeId(),   // unique ID for this specific submission record
+        playerId,                  // links back to playerSubmissionTokens
+        token,                     // the secure token (stored for audit, not shown publicly)
+        source:        "discord",  // "discord" | "website" — set on submit
+        // ── Future website placeholder ───────────────────────
+        // When site is live: send player to `websiteUrl` instead of /self-report.
+        // For now this is stored but never acted on — zero breaking change.
+        websiteUrl:    url,        // e.g. https://my-pja-site.com/match-report?...
       };
 
       // ── Parse per-position ─────────────────────────────────
