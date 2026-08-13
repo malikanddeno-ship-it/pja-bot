@@ -1,0 +1,2069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Project Azure — Team Portal</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+:root{
+  --bg:#050b14;--surface:#0c1625;--surface2:#111e32;
+  --border:rgba(59,130,246,.18);--blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);
+  --blue-mid:rgba(59,130,246,.25);--cyan:#06b6d4;--green:#22c55e;--red:#ef4444;
+  --yellow:#eab308;--purple:#8b5cf6;--text:#e2e8f0;--muted:#64748b;
+  --font:'Inter',sans-serif;--display:'Space Grotesk',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.6;min-height:100vh}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(5,11,20,.9);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);padding:0 2rem;height:64px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-size:1.1rem;font-weight:700;color:#fff;text-decoration:none;cursor:pointer}
+.nav-logo{width:32px;height:32px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.nav-links{display:flex;align-items:center;gap:4px;list-style:none}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:.875rem;font-weight:500;padding:6px 14px;border-radius:8px;transition:all .15s;cursor:pointer}
+.nav-links a:hover,.nav-links a.active{color:var(--text);background:var(--blue-dim)}
+.nav-badge{display:inline-block;background:var(--blue);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px;transition:background .3s}
+.ws-dot.live{background:var(--green)}
+main{padding-top:64px}
+.page{display:none}.page.active{display:block}
+
+/* HERO */
+.hero{min-height:88vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4rem 2rem;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 800px 600px at 50% 30%,rgba(59,130,246,.08) 0%,transparent 70%),radial-gradient(ellipse 400px 300px at 70% 70%,rgba(6,182,212,.05) 0%,transparent 60%);pointer-events:none}
+.hero-tag{display:inline-flex;align-items:center;gap:6px;background:var(--blue-dim);border:1px solid var(--border);color:var(--blue);font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:2rem}
+.hero h1{font-family:var(--display);font-size:clamp(2.5rem,6vw,5rem);font-weight:700;line-height:1.08;letter-spacing:-.03em;margin-bottom:1.25rem}
+.hero h1 span{background:linear-gradient(90deg,var(--blue) 0%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{color:var(--muted);font-size:1.1rem;max-width:520px;margin:0 auto 2.5rem}
+.hero-actions{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.stats-bar{display:flex;gap:3rem;justify-content:center;flex-wrap:wrap;margin-top:4rem;padding-top:3rem;border-top:1px solid var(--border);width:100%;max-width:700px}
+.stat-item{text-align:center}
+.stat-item .num{font-family:var(--display);font-size:2rem;font-weight:700;color:var(--blue);display:block}
+.stat-item .lbl{font-size:.8rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;border:none;transition:all .15s;text-decoration:none}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#2563eb;transform:translateY(-1px)}
+.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.btn-ghost:hover{background:var(--blue-dim);border-color:var(--blue)}
+.btn-sm{padding:7px 16px;font-size:.8rem;border-radius:8px}
+.btn-green{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}.btn-green:hover{background:rgba(34,197,94,.25)}
+.btn-yellow{background:rgba(234,179,8,.15);color:var(--yellow);border:1px solid rgba(234,179,8,.3)}.btn-yellow:hover{background:rgba(234,179,8,.25)}
+.btn-red{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}.btn-red:hover{background:rgba(239,68,68,.25)}
+
+/* SECTION */
+.section{padding:4rem 2rem;max-width:1100px;margin:0 auto}
+.section-header{margin-bottom:2rem}
+.section-header h2{font-family:var(--display);font-size:1.8rem;font-weight:700;margin-bottom:.5rem}
+.section-header p{color:var(--muted)}
+.divider{width:40px;height:3px;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:2px;margin:.75rem 0}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.5rem;transition:border-color .15s}
+.card:hover{border-color:rgba(59,130,246,.4)}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:1rem}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:1rem}
+
+/* FORM */
+.form-group{margin-bottom:1.1rem}
+.form-group label{display:block;font-size:.85rem;font-weight:600;margin-bottom:.4rem}
+.form-group input,.form-group textarea,.form-group select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-family:var(--font);font-size:.9rem;outline:none;transition:border-color .15s}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-dim)}
+.form-group textarea{resize:vertical;min-height:90px}
+.form-group select option{background:var(--surface2)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.full-w{width:100%}
+
+/* ALERTS */
+.alert{padding:12px 16px;border-radius:8px;font-size:.875rem;margin-bottom:1rem}
+.alert-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:var(--green)}
+.alert-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:var(--red)}
+.alert-info{background:var(--blue-dim);border:1px solid var(--border);color:var(--blue)}
+.hidden{display:none!important}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+.badge-yellow{background:rgba(234,179,8,.15);color:var(--yellow)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+.badge-purple{background:rgba(139,92,246,.15);color:var(--purple)}
+.live-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:600;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:var(--green)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ROSTER TABLE */
+.roster-table{width:100%;border-collapse:collapse}
+.roster-table th{text-align:left;padding:.75rem 1rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)}
+.roster-table td{padding:.875rem 1rem;border-bottom:1px solid rgba(59,130,246,.07);font-size:.9rem}
+.roster-table tr:last-child td{border-bottom:none}
+.roster-table tr:hover td{background:var(--blue-dim)}
+.ovr{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;font-family:var(--display);font-size:.85rem;font-weight:700;color:#fff}
+.player-name{font-weight:600}.player-discord{font-size:.8rem;color:var(--muted)}
+
+/* MOTM VOTING */
+.vote-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-top:1rem}
+.vote-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:1.25rem;text-align:center;cursor:pointer;transition:all .15s}
+.vote-card:hover{border-color:var(--blue);transform:translateY(-2px);background:var(--blue-dim)}
+.vote-card.my-vote{border-color:var(--yellow);background:rgba(234,179,8,.08)}
+.vote-card.closed{cursor:default;opacity:.8}
+.vote-card .vote-name{font-weight:700;font-size:1rem;margin-bottom:4px}
+.vote-count{font-family:var(--display);font-size:1.5rem;font-weight:700;color:var(--yellow);margin-top:.5rem}
+.progress-bar{height:6px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));border-radius:4px;transition:width .5s ease}
+.progress-fill.gold{background:linear-gradient(90deg,var(--yellow),#f59e0b)}
+
+/* SCRIMS */
+.rsvp-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:1rem}
+.rsvp-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem}
+.rsvp-body{display:grid;grid-template-columns:repeat(3,1fr)}
+.rsvp-col{padding:1rem 1.25rem}
+.rsvp-col:not(:last-child){border-right:1px solid var(--border)}
+.rsvp-col .col-label{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem}
+.rsvp-col .col-label.going{color:var(--green)}.rsvp-col .col-label.maybe{color:var(--yellow)}.rsvp-col .col-label.cant{color:var(--red)}
+.rsvp-col .player-list{font-size:.85rem;color:var(--muted);line-height:1.9}
+.rsvp-actions{padding:1rem 1.5rem;display:flex;gap:8px;border-top:1px solid var(--border)}
+
+/* TABS */
+.tabs{display:flex;gap:4px;margin-bottom:1.5rem;flex-wrap:wrap}
+.tab-btn{padding:7px 18px;border-radius:8px;font-size:.85rem;font-weight:500;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--muted);transition:all .15s}
+.tab-btn:hover{color:var(--text);background:var(--surface2)}
+.tab-btn.active{background:var(--blue-dim);border-color:var(--border);color:var(--text)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* APP CARD */
+.app-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.app-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem}
+.app-meta{font-size:.8rem;color:var(--muted);margin-top:2px}
+.app-body{font-size:.875rem;color:var(--muted);margin-bottom:1rem;line-height:1.6}
+.app-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* STAT BOXES */
+.stat-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.875rem;text-align:center}
+.stat-box .sv{font-family:var(--display);font-size:1.6rem;font-weight:700;color:var(--blue)}
+.stat-box .sl{font-size:.72rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+
+/* TOAST */
+.toast-container{position:fixed;bottom:2rem;right:2rem;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px 18px;border-radius:10px;font-size:.875rem;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:slideIn .2s ease;max-width:320px}
+.toast.success{border-color:rgba(34,197,94,.3)}.toast.error{border-color:rgba(239,68,68,.3)}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* SPINNER */
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-state{display:flex;align-items:center;gap:.75rem;color:var(--muted);font-size:.9rem;padding:2rem 0}
+
+hr.sep{border:none;border-top:1px solid var(--border);margin:2rem 0}
+.player-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:1rem 0 1.5rem}.player-tab-btn{padding:8px 13px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:8px;cursor:pointer}.player-tab-btn.active{background:var(--blue-dim);color:var(--text);border-color:var(--blue)}.player-tab-panel{display:none}.player-tab-panel.active{display:block}
+.player-card-ui{width:min(100%,340px);min-height:470px;margin:auto;padding:1.2rem;border-radius:28px;position:relative;overflow:hidden;background:radial-gradient(circle at 50% 18%,rgba(255,255,255,.24),transparent 32%),linear-gradient(145deg,#2563eb,#0b1730 58%,#06b6d4);border:2px solid rgba(255,255,255,.35);box-shadow:0 24px 60px rgba(0,0,0,.45)}.player-card-ui:before{content:'';position:absolute;inset:10px;border:1px solid rgba(255,255,255,.35);border-radius:22px;pointer-events:none}.pc-head{display:flex;justify-content:space-between;position:relative;z-index:1}.pc-ovr{font-family:var(--display);font-size:3.2rem;font-weight:800;line-height:1}.pc-pos{font-weight:700;letter-spacing:.12em}.pc-avatar{width:170px;height:170px;border-radius:50%;margin:1rem auto;background:rgba(5,11,20,.55);display:flex;align-items:center;justify-content:center;font-size:4rem;border:4px solid rgba(255,255,255,.55);position:relative;z-index:1}.pc-name{text-align:center;font-family:var(--display);font-size:1.5rem;font-weight:800;text-transform:uppercase;position:relative;z-index:1}.pc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem;margin-top:1rem;position:relative;z-index:1}.pc-stat{text-align:center;background:rgba(5,11,20,.42);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:.55rem}.pc-stat strong{display:block;font-size:1.15rem}.chat-thread{max-height:320px;overflow:auto;padding:.75rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px}.chat-msg{padding:.65rem .8rem;border-radius:10px;margin-bottom:.55rem;max-width:88%}.chat-msg.player{background:var(--blue-dim);margin-left:auto}.chat-msg.manager{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2)}.status-pill{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);font-size:.75rem;text-transform:capitalize}
+.text-sm{font-size:.875rem}.text-muted{color:var(--muted)}.fw-700{font-weight:700}
+.mt-1{margin-top:.5rem}.mt-2{margin-top:1rem}.mt-3{margin-top:1.5rem}.text-center{text-align:center}
+footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:var(--muted);font-size:.8rem}
+.footer-brand{font-family:var(--display);font-weight:700;color:var(--text);margin-bottom:.25rem}
+@media(max-width:768px){nav{height:auto;min-height:64px;flex-wrap:wrap;padding:10px 14px}.nav-links{display:flex;width:100%;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}.nav-links::-webkit-scrollbar{display:none}.nav-links a{white-space:nowrap;padding:6px 10px}.nav-brand{width:100%;margin-bottom:6px}main{padding-top:112px}.section{padding:2.5rem 1rem}.grid-2,.grid-3{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.rsvp-body{grid-template-columns:1fr}.rsvp-col:not(:last-child){border-right:none;border-bottom:1px solid var(--border)}.card{overflow-x:auto}.toast-container{left:1rem;right:1rem;bottom:1rem}.toast{max-width:none}}
+
+/* V5 Club experience */
+.clickable-row{cursor:pointer}.clickable-row:hover td{background:rgba(59,130,246,.15)!important}.profile-hero{display:grid;grid-template-columns:180px 1fr;gap:1.5rem;align-items:center;background:radial-gradient(circle at 15% 20%,rgba(6,182,212,.25),transparent 38%),linear-gradient(145deg,#0c2343,#08111f);border:1px solid rgba(91,205,255,.4);border-radius:24px;padding:1.5rem}.profile-avatar{width:170px;height:170px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:800 4rem var(--display);background:linear-gradient(145deg,#2563eb,#06b6d4);border:5px solid rgba(255,255,255,.45);box-shadow:0 16px 45px rgba(0,0,0,.4)}.profile-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.75rem}.profile-stat{padding:1rem;text-align:center;border-radius:14px;background:var(--surface2);border:1px solid var(--border)}.profile-stat strong{display:block;font-size:1.55rem;color:#fff}.form-dot{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;font-weight:800;margin-right:5px}.form-dot.W{background:#16a34a}.form-dot.D{background:#64748b}.form-dot.L{background:#dc2626}.form-dot.\—{background:#334155}
+.wdl-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:.6rem}.wdl-box{text-align:center;padding:.9rem;border-radius:12px;background:var(--surface2);border:1px solid var(--border)}.wdl-box strong{display:block;font-size:1.5rem}.scrim-filter{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}.scrim-filter button.active{background:var(--blue);color:#fff}.live-score{font:800 2rem var(--display);color:#fff}.event-timeline{border-left:2px solid var(--blue);padding-left:1rem}.event-item{margin:.55rem 0;padding:.55rem .7rem;background:var(--surface2);border-radius:8px}
+.pitch-shell{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1rem}.lineup-pitch{position:relative;min-height:650px;border:4px solid rgba(239,255,244,.9);border-radius:18px;overflow:hidden;background:repeating-linear-gradient(90deg,#176b3b 0,#176b3b 10%,#1d7843 10%,#1d7843 20%)}.lineup-pitch:before{content:'';position:absolute;left:50%;top:0;bottom:0;border-left:3px solid rgba(255,255,255,.8)}.lineup-pitch:after{content:'';position:absolute;width:150px;height:150px;border:3px solid rgba(255,255,255,.8);border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%)}.pitch-box{position:absolute;border:3px solid rgba(255,255,255,.8);width:17%;height:45%;top:27.5%}.pitch-box.left{left:0}.pitch-box.right{right:0}.lineup-chip{position:absolute;transform:translate(-50%,-50%);z-index:3;width:95px;text-align:center;touch-action:none;user-select:none;cursor:grab}.lineup-chip .bubble{width:48px;height:48px;border-radius:50%;margin:auto;display:flex;align-items:center;justify-content:center;background:#07172b;border:3px solid #63ddff;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,.45)}.lineup-chip .name{margin-top:4px;padding:3px 6px;border-radius:7px;background:rgba(3,12,23,.9);font-size:.72rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lineup-side{display:flex;flex-direction:column;gap:.75rem}.lineup-list{max-height:250px;overflow:auto}.lineup-person{display:flex;justify-content:space-between;align-items:center;padding:.55rem;border-bottom:1px solid var(--border)}.tactics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem}.broadcast-card{border:1px solid rgba(6,182,212,.35);background:linear-gradient(145deg,rgba(10,36,67,.92),rgba(6,18,35,.96));border-radius:18px;padding:1.2rem}.club-records{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem}.trophy{background:radial-gradient(circle at 50% 10%,rgba(250,204,21,.2),transparent 40%),var(--surface);border:1px solid rgba(250,204,21,.35);border-radius:18px;padding:1.2rem;text-align:center}.trophy-icon{font-size:3rem}.modal-profile-back{margin-bottom:1rem}
+@media(max-width:850px){.pitch-shell{grid-template-columns:1fr}.lineup-pitch{min-height:520px}.profile-hero{grid-template-columns:1fr;text-align:center}.profile-avatar{margin:auto}.wdl-strip{grid-template-columns:repeat(3,1fr)}.tactics-grid{grid-template-columns:1fr}}
+
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-brand" onclick="showPage('home')"><div class="nav-logo">⚡</div>Project Azure</div>
+  <ul class="nav-links">
+    <li><a onclick="showPage('home')" id="nav-home" class="active">Home</a></li>
+    <li><a onclick="showPage('tryout')" id="nav-tryout">Tryouts</a></li>
+    <li><a onclick="showPage('roster')" id="nav-roster">Roster</a></li>
+    <li><a onclick="showPage('stats')" id="nav-stats">Stats</a></li>
+    <li><a onclick="showPage('points')" id="nav-points">Points &amp; Shop</a></li>
+    <li><a onclick="showPage('motm')" id="nav-motm">MOTM <span class="nav-badge" id="motm-badge" style="display:none">LIVE</span></a></li>
+    <li><a onclick="showPage('scrims')" id="nav-scrims">Scrims</a></li>
+    <li><a onclick="showPage('tv')" id="nav-tv">PJA TV</a></li>
+    <li><a onclick="showPage('club')" id="nav-club">Club</a></li>
+    <li><a onclick="showPage('player')" id="nav-player">My Portal</a></li>
+    <li><a onclick="showPage('manager')" id="nav-manager">Manager</a></li>
+    <li><span class="ws-dot" id="ws-dot" title="Live sync status"></span></li>
+  </ul>
+</nav>
+
+<main>
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-tag">⚽ VRFS Competitive Team</div>
+    <h1>Project Azure<br/><span>Player Portal</span></h1>
+    <p>Live-synced with Discord. Every application, roster change, vote, and RSVP updates in real time across the bot and this portal.</p>
+    <div class="hero-actions">
+      <button class="btn btn-primary" onclick="showPage('tryout')">Apply for Tryout</button>
+      <button class="btn btn-ghost" onclick="showPage('roster')">View Roster</button>
+    </div>
+    <div class="stats-bar">
+      <div class="stat-item"><span class="num" id="hs-players">—</span><span class="lbl">Players</span></div>
+      <div class="stat-item"><span class="num" id="hs-pending">—</span><span class="lbl">Pending Apps</span></div>
+      <div class="stat-item"><span class="num" id="hs-polls">—</span><span class="lbl">Live Votes</span></div>
+      <div class="stat-item"><span class="num" id="hs-scrims">—</span><span class="lbl">Scrims</span></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="grid-3">
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">🎯</div><div class="fw-700" style="margin-bottom:.4rem">Tryout System</div><div class="text-muted text-sm">Apply with position, rating, and experience. Managers review in Discord or here.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('tryout')">Apply Now →</button></div>
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">👥</div><div class="fw-700" style="margin-bottom:.4rem">Team Roster</div><div class="text-muted text-sm">Live roster from Discord. Changes made by managers sync here instantly.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('roster')">View Roster →</button></div>
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">📊</div><div class="fw-700" style="margin-bottom:.4rem">Stats &amp; Points</div><div class="text-muted text-sm">Approved reports update season stats and automatically award points for goals, assists, saves, wins, and clean sheets.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('points')">View Points →</button></div>
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">⭐</div><div class="fw-700" style="margin-bottom:.4rem">MOTM Voting</div><div class="text-muted text-sm">Votes cast in Discord and here count together. Progress bars update live.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('motm')">Vote Now →</button></div>
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">⚽</div><div class="fw-700" style="margin-bottom:.4rem">Scrim RSVP</div><div class="text-muted text-sm">RSVP here or in Discord — both update the same list. Managers see the same headcount everywhere.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('scrims')">View Scrims →</button></div>
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">🔐</div><div class="fw-700" style="margin-bottom:.4rem">My Player Portal</div><div class="text-muted text-sm">Private match history, points, requests, availability, shop, and direct management chat.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('player')">Player Login →</button></div>
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">🔧</div><div class="fw-700" style="margin-bottom:.4rem">Manager Dashboard</div><div class="text-muted text-sm">Review applications, manage roster, start polls, post scrims — all synced to Discord.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('manager')">Dashboard →</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- TRYOUT -->
+<div class="page" id="page-tryout">
+  <div class="section">
+    <div class="section-header"><h2>Apply for Project Azure</h2><div class="divider"></div><p>Fill in your details. Our management team will review your application within 24–48 hours and DM you on Discord.</p></div>
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div id="tryout-alert" class="hidden"></div>
+          <div class="form-group"><label>VRFS Username *</label><input id="t-username" type="text" placeholder="Your in-game name"/></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Position *</label><select id="t-position"><option value="">Select...</option><option>Goalkeeper</option><option>Defender</option><option>Midfielder</option><option>Winger</option><option>Striker</option><option>Sweeper</option></select></div>
+            <div class="form-group"><label>Overall / Rating *</label><input id="t-overall" type="text" placeholder="e.g. 87 OVR"/></div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Availability *</label><select id="t-avail"><option value="">Select...</option><option>Weekdays (Mon–Fri)</option><option>Weekends (Sat–Sun)</option><option>Both Weekdays &amp; Weekends</option><option>Flexible / Varies</option></select></div>
+            <div class="form-group"><label>Discord User ID *</label><input id="t-discord" type="text" inputmode="numeric" maxlength="20" placeholder="17–20 digit user ID"/></div>
+          </div>
+          <div class="form-group"><label>Experience *</label><textarea id="t-exp" placeholder="How long have you played VRFS? Any previous teams?"></textarea></div>
+          <div class="form-group"><label>Why do you want to join PJA? *</label><textarea id="t-reason" placeholder="Tell us about yourself and what you bring to the team..."></textarea></div>
+          <button class="btn btn-primary full-w" onclick="submitTryout()" id="tryout-submit-btn">Submit Application</button>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:1rem">
+          <div class="fw-700" style="margin-bottom:.75rem">📋 What to expect</div>
+          <div class="text-sm text-muted" style="line-height:2">1. Submit your application<br/>2. Management reviews in 24–48h<br/>3. You'll receive a DM on Discord<br/>4. If accepted: join a trial session<br/>5. Final decision after the trial</div>
+        </div>
+        <div class="card">
+          <div class="fw-700" style="margin-bottom:.75rem">✅ Requirements</div>
+          <div class="text-sm text-muted" style="line-height:2">• Minimum 75 OVR rating<br/>• Available for 2+ sessions/week<br/>• Active Discord presence<br/>• Team-first mindset<br/>• Competitive VRFS experience preferred</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="sep"/>
+    <div class="section-header"><h2 style="font-size:1.3rem">Recent Applications</h2><div class="divider"></div></div>
+    <div id="tryout-list"><div class="loading-state"><div class="spinner"></div>Loading applications...</div></div>
+  </div>
+</div>
+
+<!-- ROSTER -->
+<div class="page" id="page-roster">
+  <div class="section">
+    <div class="section-header"><h2>Team Roster</h2><div class="divider"></div><p>Live from the Discord bot. Updates instantly when managers add or change players.</p></div>
+    <div class="card">
+      <table class="roster-table">
+        <thead><tr><th>OVR</th><th>Player</th><th>Position</th><th>Status</th><th>Joined</th></tr></thead>
+        <tbody id="roster-body"></tbody>
+      </table>
+      <div id="roster-loading" class="loading-state"><div class="spinner"></div>Loading roster...</div>
+      <div id="roster-empty" class="text-center text-muted text-sm hidden" style="padding:2rem">No players on the roster yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="page" id="page-stats">
+  <div class="section">
+    <div class="section-header"><h2>Match Stats</h2><div class="divider"></div><p>Reports wait for manager approval. Approved stats update the leaderboard and automatically award points.</p></div>
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <div class="fw-700" style="margin-bottom:1rem">Submit Match Stats</div>
+          <div id="stats-alert" class="hidden"></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Match ID</label><input id="s-matchid" type="text" placeholder="e.g. M001"/></div>
+            <div class="form-group"><label>Opponent</label><input id="s-opp" type="text" placeholder="Team name"/></div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group"><label>Result</label><input id="s-result" type="text" placeholder="e.g. W 3-1"/></div>
+            <div class="form-group"><label>Your Discord ID</label><input id="s-discordid" type="text" placeholder="18-digit ID"/></div>
+          </div>
+          <div class="form-group"><label>Your Username</label><input id="s-username" type="text" placeholder="VRFS username"/></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem">
+            <div class="form-group"><label>Goals</label><input id="s-goals" type="number" min="0" value="0"/></div>
+            <div class="form-group"><label>Assists</label><input id="s-assists" type="number" min="0" value="0"/></div>
+            <div class="form-group"><label>Saves</label><input id="s-saves" type="number" min="0" value="0"/></div>
+            <div class="form-group"><label>Shots</label><input id="s-shots" type="number" min="0" value="0"/></div>
+            <div class="form-group"><label>Passes</label><input id="s-passes" type="number" min="0" value="0"/></div>
+            <div class="form-group"><label>Tackles</label><input id="s-tackles" type="number" min="0" value="0"/></div>
+          </div>
+          <button class="btn btn-primary full-w" onclick="submitStats()">Submit Stats</button>
+        </div>
+      </div>
+      <div>
+        <div class="fw-700" style="margin-bottom:.75rem">🏆 Season Leaderboard</div>
+        <div id="leaderboard-list"><div class="loading-state"><div class="spinner"></div>Loading...</div></div>
+      </div>
+    </div>
+    <hr class="sep"/>
+    <div class="fw-700" style="margin-bottom:1rem">Recent Match Reports</div>
+    <div id="match-reports"><div class="loading-state"><div class="spinner"></div>Loading reports...</div></div>
+  </div>
+</div>
+
+<!-- POINTS & SHOP -->
+<div class="page" id="page-points">
+  <div class="section">
+    <div class="section-header"><h2>Points &amp; Rewards</h2><div class="divider"></div><p>Approved match reports award points automatically. Use Discord commands to buy rewards and generate your player card.</p></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="fw-700" style="margin-bottom:1rem">Check Player Points</div>
+        <div class="form-group"><label>Discord User ID</label><input id="points-discord-id" type="text" inputmode="numeric" placeholder="123456789012345678"/></div>
+        <button class="btn btn-primary" onclick="lookupPoints()">Check Balance</button>
+        <div id="points-player-result" class="mt-2"></div>
+      </div>
+      <div class="card">
+        <div class="fw-700" style="margin-bottom:.75rem">Automatic Match Points</div>
+        <div class="text-sm text-muted" style="line-height:2">
+          Played in match: <strong>+3</strong><br/>
+          Team win: <strong>+5</strong><br/>
+          Goal: <strong>+10 each</strong><br/>
+          Assist: <strong>+7 each</strong><br/>
+          Save: <strong>+2 each</strong><br/>
+          Clean sheet: <strong>+10</strong><br/>
+          Man of the Match: <strong>+15</strong>
+        </div>
+      </div>
+    </div>
+    <div class="section-header mt-3"><h2 style="font-size:1.35rem">Points Leaderboard</h2><div class="divider"></div></div>
+    <div id="points-leaderboard"><div class="loading-state"><div class="spinner"></div>Loading points...</div></div>
+    <div class="section-header mt-3"><h2 style="font-size:1.35rem">PJA Shop</h2><div class="divider"></div><p>Use <strong>/shop buy</strong> in Discord to purchase. Managers fulfill orders from this dashboard.</p></div>
+    <div class="grid-3" id="shop-catalog"><div class="loading-state"><div class="spinner"></div>Loading shop...</div></div>
+    <div class="alert alert-info mt-3">Use <strong>/card view</strong> in Discord to generate a realistic card from your roster rating, approved stats, points, avatar, and unlocked theme.</div>
+  </div>
+</div>
+
+<!-- MOTM -->
+<div class="page" id="page-motm">
+  <div class="section">
+    <div class="section-header"><h2>Man of the Match</h2><div class="divider"></div><p>Votes from Discord and here count together. Progress bars update live as votes come in from either surface.</p></div>
+    <div id="motm-active-section"></div>
+    <hr class="sep"/>
+    <div class="fw-700" style="margin-bottom:1rem">Past Results</div>
+    <div id="motm-past-section"></div>
+  </div>
+</div>
+
+<!-- SCRIMS -->
+<div class="page" id="page-scrims">
+  <div class="section">
+    <div class="section-header"><h2>Scrims &amp; Matches</h2><div class="divider"></div><p>Upcoming, live, finished, and cancelled Project Azure matches.</p></div>
+    <div id="scrims-wdl" class="card" style="margin-bottom:1rem"></div>
+    <div class="scrim-filter" id="scrim-filter"><button class="btn btn-ghost btn-sm active" onclick="setScrimFilter('all',this)">All</button><button class="btn btn-ghost btn-sm" onclick="setScrimFilter('scheduled',this)">Upcoming</button><button class="btn btn-ghost btn-sm" onclick="setScrimFilter('live',this)">Live</button><button class="btn btn-ghost btn-sm" onclick="setScrimFilter('finished',this)">Finished</button><button class="btn btn-ghost btn-sm" onclick="setScrimFilter('cancelled',this)">Cancelled</button></div>
+    <div id="scrims-list"><div class="loading-state"><div class="spinner"></div>Loading scrims...</div></div>
+    <div id="scrims-empty" class="text-center text-muted hidden" style="padding:3rem">No scrims scheduled yet.</div>
+  </div>
+</div>
+
+
+<!-- PUBLIC PLAYER PROFILE -->
+<div class="page" id="page-profile">
+  <div class="section">
+    <button class="btn btn-ghost btn-sm modal-profile-back" onclick="showPage('roster')">← Back to Roster</button>
+    <div id="public-profile-content"><div class="loading-state"><div class="spinner"></div>Loading player profile...</div></div>
+  </div>
+</div>
+
+<!-- PJA TV -->
+<div class="page" id="page-tv">
+  <div class="section">
+    <div class="section-header"><h2>📺 PJA TV</h2><div class="divider"></div><p>Live Project Azure scoreboards, match timelines, full-time reports, and the broadcast archive.</p></div>
+    <div id="tv-live"></div>
+    <div class="section-header mt-3"><h2 style="font-size:1.35rem">Broadcast Archive</h2><div class="divider"></div></div>
+    <div id="tv-archive"></div>
+  </div>
+</div>
+
+<!-- CLUB / DYNASTY -->
+<div class="page" id="page-club">
+  <div class="section">
+    <div class="section-header"><h2>Project Azure Club History</h2><div class="divider"></div><p>Seasons, records, rivalries, awards, trophies, and the players who built PJA.</p></div>
+    <div id="club-content"><div class="loading-state"><div class="spinner"></div>Loading club history...</div></div>
+  </div>
+</div>
+
+<!-- PLAYER PORTAL -->
+<div class="page" id="page-player">
+  <div class="section">
+    <div class="section-header"><h2>My Player Portal</h2><div class="divider"></div><p>Your private PJA profile, card, points, match history, requests, availability, and conversations with management.</p></div>
+
+    <div class="card" id="player-login-card" style="margin-bottom:1.5rem">
+      <div class="fw-700" style="margin-bottom:.5rem">Secure Player Login</div>
+      <div class="alert alert-info">In Discord, run <strong>/portal login</strong>. Enter the one-use code below. It expires after 10 minutes.</div>
+      <div class="form-grid mt-2">
+        <div class="form-group"><label>One-use login code</label><input id="player-login-code" type="text" maxlength="20" placeholder="ABCD2345" style="text-transform:uppercase"/></div>
+        <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn btn-primary full-w" onclick="playerLogin()">Open My Portal</button></div>
+      </div>
+      <div id="player-login-msg" class="hidden"></div>
+    </div>
+
+    <div id="player-session" style="display:none">
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+        <div><div class="text-muted text-sm">Signed in as</div><div class="fw-700" id="player-session-name">—</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="playerLogout()">Sign Out</button>
+      </div>
+      <div class="player-tabs">
+        <button class="player-tab-btn active" onclick="openPlayerPanel('player-overview',this)">Overview</button>
+        <button class="player-tab-btn" onclick="openPlayerPanel('player-card-history',this)">Card &amp; History</button>
+        <button class="player-tab-btn" onclick="openPlayerPanel('player-shop',this)">Shop</button>
+        <button class="player-tab-btn" onclick="openPlayerPanel('player-chat',this)">Talk to Manager</button>
+        <button class="player-tab-btn" onclick="openPlayerPanel('player-requests',this)">Requests</button>
+        <button class="player-tab-btn" onclick="openPlayerPanel('player-availability',this)">Availability</button>
+        <button class="player-tab-btn" onclick="openPlayerPanel('player-feedback',this)">Suggestions &amp; Complaints</button>
+      </div>
+
+      <div class="player-tab-panel active" id="player-overview"><div id="player-overview-content"><div class="loading-state"><div class="spinner"></div>Loading...</div></div></div>
+      <div class="player-tab-panel" id="player-card-history"><div class="grid-2"><div id="player-card-content"></div><div><div class="fw-700" style="margin-bottom:.75rem">My Match History</div><div id="player-history-content"></div></div></div></div>
+      <div class="player-tab-panel" id="player-shop"><div id="player-shop-content"></div></div>
+      <div class="player-tab-panel" id="player-chat">
+        <div class="card" style="margin-bottom:1rem">
+          <div class="fw-700" style="margin-bottom:1rem">Start a Private Conversation</div>
+          <div class="form-grid"><div class="form-group"><label>Subject</label><input id="pc-subject" type="text"/></div><div class="form-group"><label>Category</label><select id="pc-category"><option>General</option><option>Roster</option><option>Match</option><option>Shop</option><option>Conduct</option><option>Other</option></select></div></div>
+          <div class="form-group"><label>Message</label><textarea id="pc-message"></textarea></div>
+          <button class="btn btn-primary" onclick="playerStartConversation()">Send to Management</button>
+        </div>
+        <div id="player-conversations-content"></div>
+      </div>
+      <div class="player-tab-panel" id="player-requests">
+        <div class="card" style="margin-bottom:1rem">
+          <div class="fw-700" style="margin-bottom:1rem">Submit a Request</div>
+          <div class="form-group"><label>Request Type</label><select id="pr-type"><option>Profile or card change</option><option>Position or roster change</option><option>Shop reward fulfillment</option><option>Leave or absence</option><option>Match-stat correction</option><option>Trial or promotion</option><option>Role request</option><option>Other</option></select></div>
+          <div class="form-group"><label>Details</label><textarea id="pr-details"></textarea></div>
+          <button class="btn btn-primary" onclick="playerSubmitRequest()">Submit Request</button>
+        </div>
+        <div id="player-requests-content"></div>
+      </div>
+      <div class="player-tab-panel" id="player-availability"><div id="player-availability-content"></div></div>
+      <div class="player-tab-panel" id="player-feedback">
+        <div class="grid-2">
+          <div class="card"><div class="fw-700" style="margin-bottom:1rem">Send a Suggestion</div><div class="form-group"><label>Category</label><select id="pf-sug-category"><option>Bot</option><option>Website</option><option>Team</option><option>Events</option><option>Other</option></select></div><div class="form-group"><label>Suggestion</label><textarea id="pf-sug-message"></textarea></div><button class="btn btn-primary" onclick="playerSubmitSuggestion()">Send Suggestion</button></div>
+          <div class="card"><div class="fw-700" style="margin-bottom:1rem">Private Complaint</div><div class="form-group"><label>Category</label><select id="pf-cmp-category"><option>Player conduct</option><option>Manager conduct</option><option>Match issue</option><option>Bot or website</option><option>Other</option></select></div><div class="form-group"><label>Complaint</label><textarea id="pf-cmp-message"></textarea></div><button class="btn btn-red" onclick="playerSubmitComplaint()">Send Privately</button></div>
+        </div>
+        <div id="player-feedback-content" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGER -->
+<div class="page" id="page-manager">
+  <div class="section">
+    <div class="section-header"><h2>Manager Dashboard</h2><div class="divider"></div><p>All actions here sync live to Discord via the bot's WebSocket listener.</p></div>
+    <div class="alert alert-info" style="margin-bottom:1.5rem">🔒 Sign in with the manager username and password from server config. In a production deployment this would use Discord OAuth.</div>
+
+    <div class="card" id="manager-login-card" style="margin-bottom:1.5rem">
+      <div class="fw-700" style="margin-bottom:1rem">Manager Sign In</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Username</label><input id="mgr-username" type="text" autocomplete="username"/></div>
+        <div class="form-group"><label>Password</label><input id="mgr-password" type="password" autocomplete="current-password"/></div>
+      </div>
+      <div id="manager-login-msg" class="hidden"></div>
+      <button class="btn btn-primary" onclick="managerLogin()">Sign In</button>
+    </div>
+
+    <div class="card hidden" id="manager-session-card" style="margin-bottom:1.5rem;display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div>
+          <div class="fw-700">Signed in</div>
+          <div class="text-sm text-muted" id="manager-session-user">—</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="managerLogout()">Sign Out</button>
+      </div>
+    </div>
+
+    <div id="manager-tools" style="display:none">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="openTab('tab-apps',this)">Applications</button>
+      <button class="tab-btn" onclick="openTab('tab-match-reports',this)">Match Reports</button>
+      <button class="tab-btn" onclick="openTab('tab-points-mgr',this)">Points</button>
+      <button class="tab-btn" onclick="openTab('tab-shop-orders',this)">Shop Orders</button>
+      <button class="tab-btn" onclick="openTab('tab-suggestions',this)">Suggestions</button>
+      <button class="tab-btn" onclick="openTab('tab-complaints',this)">Complaints</button>
+      <button class="tab-btn" onclick="openTab('tab-conversations',this)">Conversations</button>
+      <button class="tab-btn" onclick="openTab('tab-requests',this)">Requests</button>
+      <button class="tab-btn" onclick="openTab('tab-availability-mgr',this)">Availability</button>
+      <button class="tab-btn" onclick="openTab('tab-lineup-builder',this)">Lineup Builder</button>
+      <button class="tab-btn" onclick="openTab('tab-scrim-control',this)">Scrim Control</button>
+      <button class="tab-btn" onclick="openTab('tab-tv-manager',this)">PJA TV</button>
+      <button class="tab-btn" onclick="openTab('tab-dynasty',this)">Dynasty</button>
+      <button class="tab-btn" onclick="openTab('tab-roster-mgr',this)">Roster</button>
+      <button class="tab-btn" onclick="openTab('tab-scrim-post',this)">Post Scrim</button>
+      <button class="tab-btn" onclick="openTab('tab-motm-mgr',this)">MOTM</button>
+      <button class="tab-btn" onclick="openTab('tab-announce',this)">Announce</button>
+      <button class="tab-btn" onclick="openTab('tab-permissions',this)">Permissions</button>
+      <button class="tab-btn" onclick="openTab('tab-activity-review',this)">Activity Review</button>
+      <button class="tab-btn" onclick="openTab('tab-welcomer',this)">Welcomer</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-apps">
+      <div class="card" style="margin-bottom:1rem">
+        <div class="fw-700" style="margin-bottom:.35rem">Saved Tryout Applications</div>
+        <div class="text-sm text-muted" style="margin-bottom:1rem">Every Discord and website application is stored in the Railway volume, even after its Discord review message is deleted.</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Status</label><select id="mgr-app-status" onchange="refreshMgrApps()"><option value="all">All applications</option><option value="pending">Pending</option><option value="trial">Trial</option><option value="accepted">Accepted</option><option value="denied">Denied</option></select></div>
+          <div class="form-group"><label>Search</label><input id="mgr-app-search" type="search" placeholder="Player, Discord tag, position, or application ID" oninput="refreshMgrApps()"/></div>
+        </div>
+      </div>
+      <div id="mgr-apps-list"><div class="loading-state"><div class="spinner"></div>Loading...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-match-reports">
+      <div class="alert alert-info">Approve reports to add them to public stats and award points automatically. Denied reports award nothing.</div>
+      <div id="mgr-match-reports" class="mt-2"><div class="loading-state"><div class="spinner"></div>Loading pending reports...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-points-mgr">
+      <div class="card" style="margin-bottom:1.5rem">
+        <div class="fw-700" style="margin-bottom:1rem">Manual Points Adjustment</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Discord User ID</label><input id="pm-id" type="text" inputmode="numeric"/></div>
+          <div class="form-group"><label>Player Username</label><input id="pm-name" type="text"/></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Action</label><select id="pm-action"><option value="give">Give</option><option value="remove">Remove</option><option value="set">Set exact balance</option></select></div>
+          <div class="form-group"><label>Amount</label><input id="pm-amount" type="number" min="0"/></div>
+        </div>
+        <div class="form-group"><label>Reason</label><input id="pm-reason" type="text" placeholder="Why is this adjustment being made?"/></div>
+        <button class="btn btn-primary" onclick="mgrAdjustPoints()">Save Points Change</button>
+      </div>
+      <div class="fw-700" style="margin-bottom:.75rem">Current Leaderboard</div>
+      <div id="mgr-points-board"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-shop-orders">
+      <div class="alert alert-info">Fulfill completed rewards. Rejecting an order automatically refunds its points.</div>
+      <div id="mgr-shop-orders" class="mt-2"><div class="loading-state"><div class="spinner"></div>Loading orders...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-suggestions">
+      <div id="mgr-suggestions"><div class="loading-state"><div class="spinner"></div>Loading suggestions...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-complaints">
+      <div class="alert alert-info">Complaints are private. Private notes are never shown to the player; the reply field is sent to them.</div>
+      <div id="mgr-complaints" class="mt-2"><div class="loading-state"><div class="spinner"></div>Loading complaints...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-conversations"><div class="alert alert-info">Private player conversations. Replies are sent to the player by Discord DM and appear in their portal.</div><div id="mgr-conversations" class="mt-2"></div></div>
+    <div class="tab-panel" id="tab-requests"><div id="mgr-requests"></div></div>
+    <div class="tab-panel" id="tab-availability-mgr"><div class="alert alert-info">Review responses, missing players, notes, and save a working lineup for each match.</div><div id="mgr-availability" class="mt-2"></div></div>
+
+    <div class="tab-panel" id="tab-roster-mgr">
+      <div class="card" style="margin-bottom:1.5rem">
+        <div class="fw-700" style="margin-bottom:1rem">Add Player to Roster</div>
+        <div class="form-grid">
+          <div class="form-group"><label>VRFS Username</label><input id="r-username" type="text"/></div>
+          <div class="form-group"><label>Discord Tag</label><input id="r-discord" type="text" placeholder="user#0000"/></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Discord ID (18 digits)</label><input id="r-discordid" type="text" placeholder="123456789012345678"/></div>
+          <div class="form-group"><label>Overall</label><input id="r-overall" type="number" min="1" max="99"/></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Position</label><select id="r-position"><option>Goalkeeper</option><option>Defender</option><option>Midfielder</option><option>Winger</option><option>Striker</option><option>Sweeper</option></select></div>
+          <div class="form-group"><label>Status</label><select id="r-status"><option>Active</option><option>Trial</option><option>Injured</option><option>Inactive</option><option>Loaned</option></select></div>
+        </div>
+        <button class="btn btn-primary" onclick="mgrAddPlayer()">Add Player</button>
+      </div>
+      <div class="fw-700" style="margin-bottom:.75rem">Current Roster</div>
+      <div class="card">
+        <table class="roster-table"><thead><tr><th>Player</th><th>Position</th><th>OVR</th><th>Status</th><th></th></tr></thead>
+        <tbody id="mgr-roster-body"></tbody></table>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-scrim-post">
+      <div class="card">
+        <div class="fw-700" style="margin-bottom:1rem">Post New Friendly or League Match</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Opponent Team</label><input id="sc-opp" type="text"/></div>
+          <div class="form-group"><label>Match Type</label><select id="sc-type"><option value="Friendly">Friendly</option><option value="League Match">League Match</option></select></div>
+        </div>
+        <div class="form-group"><label>Date &amp; Time</label><input id="sc-time" type="text" placeholder="e.g. Saturday 8 PM UTC"/></div>
+        <div class="form-group"><label>Notes (optional)</label><textarea id="sc-notes" placeholder="Any extra info for players..."></textarea></div>
+        <button class="btn btn-primary" onclick="mgrPostScrim()">Post Scrim → Discord + Portal</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-motm-mgr">
+      <div class="card" style="margin-bottom:1.5rem">
+        <div class="fw-700" style="margin-bottom:1rem">Start MOTM Vote</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Match ID</label><input id="m-matchid" type="text" placeholder="e.g. M001"/></div>
+          <div class="form-group"><label>Opponent</label><input id="m-opp" type="text"/></div>
+        </div>
+        <div class="form-group"><label>Nominees (comma-separated usernames)</label><input id="m-nominees" type="text" placeholder="Player1, Player2, Player3"/></div>
+        <button class="btn btn-primary" onclick="mgrStartMOTM()">Start Vote → Discord + Portal</button>
+      </div>
+      <div class="fw-700" style="margin-bottom:.75rem">Active Polls</div>
+      <div id="mgr-polls-list"><div class="loading-state"><div class="spinner"></div>Loading...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-announce">
+      <div class="card">
+        <div class="fw-700" style="margin-bottom:1rem">Post Team Announcement</div>
+        <div class="alert alert-info">The bot will post this to the chosen channel in Discord. A channel_id is required — paste it from Discord (right-click channel → Copy ID).</div>
+        <div class="form-group mt-2"><label>Title</label><input id="an-title" type="text" oninput="previewAnnounce()"/></div>
+        <div class="form-group"><label>Message</label><textarea id="an-msg" oninput="previewAnnounce()"></textarea></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Color</label><select id="an-color" onchange="previewAnnounce()"><option value="#3b82f6">Blue</option><option value="#22c55e">Green</option><option value="#ef4444">Red</option><option value="#eab308">Yellow</option><option value="#8b5cf6">Purple</option><option value="#06b6d4">Cyan</option></select></div>
+          <div class="form-group"><label>Discord Channel ID</label><input id="an-channel" type="text" placeholder="123456789012345678"/></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Image URL (optional)</label><input id="an-img" type="text" oninput="previewAnnounce()"/></div>
+          <div class="form-group"><label>Ping (optional)</label><input id="an-ping" type="text" placeholder="@everyone or role name"/></div>
+        </div>
+        <div class="fw-700 text-sm" style="margin-bottom:.5rem">Preview</div>
+        <div id="announce-preview" style="border-left:4px solid #3b82f6;background:var(--surface2);padding:1rem;border-radius:0 8px 8px 0;margin-bottom:1rem">
+          <div style="font-weight:700;margin-bottom:.5rem">📢 Announcement Title</div>
+          <div class="text-sm text-muted">Your message appears here...</div>
+        </div>
+        <button class="btn btn-primary" onclick="mgrPostAnnouncement()">Post to Discord</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-permissions">
+      <div class="card" style="margin-bottom:1.5rem">
+        <div class="fw-700" style="margin-bottom:.5rem">Manager Command Roles</div>
+        <div class="alert alert-info">OWNER, CO OWNER, and TEAM MANAGER always work. Server owners and members with Administrator also always work. Add another Discord role below using its exact role name and Role ID.</div>
+        <div class="form-grid mt-2">
+          <div class="form-group"><label>Discord Role Name</label><input id="perm-role-name" type="text" placeholder="e.g. Assistant Manager"/></div>
+          <div class="form-group"><label>Discord Role ID</label><input id="perm-role-id" type="text" inputmode="numeric" placeholder="123456789012345678"/></div>
+        </div>
+        <button class="btn btn-primary" onclick="mgrAddPermissionRole()">Add Manager Role</button>
+      </div>
+      <div class="fw-700" style="margin-bottom:.75rem">Roles With Manager Access</div>
+      <div id="mgr-permissions-list"><div class="loading-state"><div class="spinner"></div>Loading...</div></div>
+    </div>
+
+
+
+    <div class="tab-panel" id="tab-lineup-builder">
+      <div class="alert alert-info">Build the next lineup on a real pitch. Drag starters, add the bench and reserves, set tactics, then publish it for /lineup and the public website.</div>
+      <div class="card mt-2">
+        <div class="form-grid">
+          <div class="form-group"><label>Match</label><select id="lb-match" onchange="loadSelectedLineup()"></select></div>
+          <div class="form-group"><label>Formation</label><select id="lb-formation" onchange="applyFormation()"><option>4-3-3</option><option>4-2-3-1</option><option>4-4-2</option><option>3-5-2</option><option>5-3-2</option><option>Custom</option></select></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Roster Player</label><select id="lb-player"></select></div>
+          <div class="form-group"><label>Add As</label><div style="display:flex;gap:.4rem"><button class="btn btn-primary btn-sm" onclick="addLineupPlayer('starter')">Starter</button><button class="btn btn-ghost btn-sm" onclick="addLineupPlayer('bench')">Bench</button><button class="btn btn-ghost btn-sm" onclick="addLineupPlayer('reserve')">Reserve</button></div></div>
+        </div>
+      </div>
+      <div class="pitch-shell mt-2">
+        <div class="lineup-pitch" id="lineup-pitch"><div class="pitch-box left"></div><div class="pitch-box right"></div></div>
+        <div class="lineup-side">
+          <div class="card"><div class="fw-700">Squad</div><div id="lb-squad" class="lineup-list mt-1"></div></div>
+          <div class="card"><div class="fw-700">Tactics</div><div class="tactics-grid mt-1" id="lb-tactics"></div></div>
+        </div>
+      </div>
+      <div class="card mt-2"><div class="form-group"><label>Manager Notes</label><textarea id="lb-notes"></textarea></div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn btn-ghost" onclick="saveLineup(false)">Save Draft</button><button class="btn btn-primary" onclick="saveLineup(true)">Publish Lineup</button><button class="btn btn-red" onclick="unpublishLineup()">Unpublish</button></div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-scrim-control">
+      <div class="alert alert-info">Edit, cancel, or delete current scrims. Deleting removes the website record and RSVP data.</div>
+      <div id="mgr-scrim-control" class="mt-2"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-tv-manager">
+      <div class="alert alert-info">Pick the match, what happened, and the player. Goals change the score automatically.</div>
+      <div class="card mt-2">
+        <div class="form-grid">
+          <div class="form-group"><label>Current Match</label><select id="tv-mgr-match" onchange="onTVMatchChange()"></select></div>
+          <div class="form-group"><label>What happened?</label><select id="tv-event-type" onchange="onTVEventChange()">
+            <option value="pja:goal">PJA scored</option>
+            <option value="opponent:goal">Opponent scored</option>
+            <option value="pja:assist">PJA player got an assist</option>
+            <option value="pja:save">PJA player made a big save</option>
+            <option value="pja:yellow">PJA player got a yellow card</option>
+            <option value="opponent:yellow">Opponent got a yellow card</option>
+            <option value="pja:red">PJA player got a red card</option>
+            <option value="opponent:red">Opponent got a red card</option>
+            <option value="pja:substitution">PJA substitution</option>
+            <option value="team:note">Match update / note</option>
+          </select></div>
+        </div>
+        <div class="form-grid" id="tv-player-row">
+          <div class="form-group"><label id="tv-player-label">Scorer</label><select id="tv-player"></select></div>
+          <div class="form-group" id="tv-second-wrap"><label id="tv-second-label">Assister (optional)</label><select id="tv-second"></select></div>
+        </div>
+        <div class="form-grid"><div class="form-group"><label>Minute (optional)</label><input id="tv-minute" placeholder="67" inputmode="numeric"/></div><div class="form-group"><label id="tv-detail-label">Extra detail (optional)</label><input id="tv-detail" placeholder="Anything else to show"/></div></div>
+        <div class="card" style="text-align:center;background:rgba(8,24,48,.65)"><div class="text-muted text-sm">LIVE SCORE</div><div style="font-size:2rem;font-weight:800"><span id="tv-score-pja">0</span> — <span id="tv-score-opponent">0</span></div><div class="text-muted text-sm">Project Azure · Opponent</div></div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem"><button class="btn btn-primary" onclick="mgrBroadcastStart()">Start Broadcast</button><button class="btn btn-green" onclick="mgrBroadcastEvent()">Add Selected Event</button><button class="btn btn-red" onclick="mgrBroadcastUndo()">Undo Last Event</button><button class="btn btn-yellow" onclick="mgrBroadcastHalftime()">Half-Time</button></div>
+        <div class="form-grid mt-2"><div class="form-group"><label>Player of the Match</label><select id="tv-motm"></select></div><div class="form-group"><label>Full-Time Summary</label><input id="tv-summary" placeholder="Optional result summary"/></div></div><button class="btn btn-green" onclick="mgrBroadcastFinish()">Finish &amp; Publish Result</button>
+      </div>
+      <div id="mgr-tv-preview" class="mt-2"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-dynasty">
+      <div class="grid-2">
+        <div class="card"><div class="fw-700">Season Control</div><div class="form-group mt-1"><label>New Season Name</label><input id="dyn-season-name" placeholder="PJA Season 2"/></div><button class="btn btn-primary" onclick="mgrStartSeason()">Start Season</button><button class="btn btn-red" style="margin-left:.4rem" onclick="mgrFinishSeason()">Finish Active Season</button></div>
+        <div class="card"><div class="fw-700">Add Trophy</div><div class="form-grid mt-1"><input id="dyn-trophy-name" placeholder="Cup Champions"/><input id="dyn-trophy-season" placeholder="Season 2"/></div><input id="dyn-trophy-description" class="mt-1" placeholder="Description"/><button class="btn btn-yellow mt-1" onclick="mgrAddTrophy()">Add Trophy</button></div>
+      </div>
+      <div class="card mt-2"><div class="fw-700">Give Award</div><div class="form-grid mt-1"><input id="dyn-award-title" placeholder="Player of the Month"/><input id="dyn-award-winner" placeholder="Winner name"/></div><div class="form-grid mt-1"><input id="dyn-award-id" placeholder="Discord ID (optional)"/><input id="dyn-award-period" placeholder="July 2026"/></div><input id="dyn-award-reason" class="mt-1" placeholder="Reason"/><button class="btn btn-primary mt-1" onclick="mgrAddAward()">Give Award</button></div>
+      <div id="mgr-dynasty-preview" class="mt-2"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-activity-review">
+      <div class="alert alert-info">Kick Wave never removes anyone automatically. Review members individually, warn them, protect them, or confirm a kick. Discord message tracking starts only after this update is deployed.</div>
+      <div class="card mt-2">
+        <div class="form-grid">
+          <div class="form-group"><label>Discord Server</label><select id="ar-guild"></select></div>
+          <div class="form-group"><label>Inactive for at least</label><input id="ar-days" type="number" min="7" max="365" value="30"/></div>
+        </div>
+        <button class="btn btn-primary" onclick="refreshMgrActivity()">Scan Inactive Members</button>
+      </div>
+      <div class="grid-2 mt-2">
+        <div><div class="fw-700" style="margin-bottom:.75rem">Review Queue</div><div id="mgr-activity-list"></div></div>
+        <div><div class="fw-700" style="margin-bottom:.75rem">Protected Members</div><div id="mgr-activity-protected"></div></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-welcomer">
+      <div class="alert alert-info">Use Discord channel and role IDs. Place the PJA bot role above any automatic roles it needs to assign.</div>
+      <div class="card mt-2">
+        <div class="form-grid">
+          <div class="form-group"><label>Discord Server</label><select id="wc-guild" onchange="loadWelcomeConfig()"></select></div>
+          <div class="form-group"><label>Welcome Channel ID</label><input id="wc-channel" inputmode="numeric" placeholder="123456789012345678"/></div>
+        </div>
+        <div class="form-grid">
+          <label><input id="wc-enabled" type="checkbox"/> Enable welcomes</label>
+          <label><input id="wc-image" type="checkbox" checked/> Include welcome image</label>
+          <label><input id="wc-dm-enabled" type="checkbox"/> Send private welcome DM</label>
+          <label><input id="wc-goodbye-enabled" type="checkbox"/> Enable goodbye messages</label>
+        </div>
+        <div class="form-group mt-2"><label>Welcome Message</label><textarea id="wc-message">Welcome {user} to {server}! You are member #{member_count}.</textarea><div class="text-muted text-sm">Placeholders: {user}, {username}, {server}, {member_count}</div></div>
+        <div class="form-group"><label>Private DM Message</label><textarea id="wc-dm-message">Welcome to {server}! Use /portal login to access your dashboard.</textarea></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Automatic Role IDs</label><input id="wc-roles" placeholder="Role ID, Role ID"/></div>
+          <div class="form-group"><label>Goodbye Channel ID</label><input id="wc-goodbye-channel" inputmode="numeric"/></div>
+        </div>
+        <div class="form-group"><label>Goodbye Message</label><textarea id="wc-goodbye-message">{username} has left {server}.</textarea></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Rules Link</label><input id="wc-rules" placeholder="https://..."/></div>
+          <div class="form-group"><label>Player Portal Link</label><input id="wc-portal" placeholder="https://.../portal"/></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveWelcomeConfig()">Save Welcomer</button>
+      </div>
+      <div class="card mt-2">
+        <div class="fw-700">Send Test Welcome</div>
+        <div class="form-grid mt-1"><div class="form-group"><label>Discord User ID</label><input id="wc-test-user" inputmode="numeric"/></div><div class="form-group"><label>&nbsp;</label><button class="btn btn-ghost" onclick="testWelcomeConfig()">Send Test to Welcome Channel</button></div></div>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+
+</main>
+<footer><div class="footer-brand">Project Azure</div><div>VRFS Competitive Team · Player Portal · Live-synced with Discord</div></footer>
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────────
+// Change this to your server's address in production
+const API = window.PJA_API || (window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'http://localhost:8000');
+const WS  = API.replace('http', 'ws') + '/ws';
+
+// Track what the user has voted on this session (keyed by poll_id)
+const SESSION_VOTES = {};
+// Track user's RSVP per scrim this session
+const SESSION_RSVP = {};
+
+// ─── WEBSOCKET LIVE SYNC ───────────────────────────────────────────────────────
+let ws, wsReconnectTimer;
+
+function connectWS() {
+  try { ws = new WebSocket(WS); } catch(e) { scheduleReconnect(); return; }
+  ws.onopen = () => {
+    document.getElementById('ws-dot').classList.add('live');
+    clearTimeout(wsReconnectTimer);
+  };
+  ws.onclose = ws.onerror = () => {
+    document.getElementById('ws-dot').classList.remove('live');
+    scheduleReconnect();
+  };
+  ws.onmessage = e => {
+    try { handleWS(JSON.parse(e.data)); } catch(ex) {}
+  };
+}
+function scheduleReconnect() { wsReconnectTimer = setTimeout(connectWS, 4000); }
+
+function handleWS(payload) {
+  const {event, data} = payload;
+  switch(event) {
+    case 'tryout_created':   onWSTryoutCreated(data); break;
+    case 'tryout_reviewed':  onWSTryoutReviewed(data); break;
+    case 'player_added':
+    case 'player_updated':
+    case 'player_removed':   refreshRoster(); refreshMgrRoster(); refreshHome(); break;
+    case 'stats_submitted':  refreshStats(); if (getManagerToken()) refreshMgrMatchReports(); break;
+    case 'stats_reviewed':   refreshStats(); refreshPoints(); if (getManagerToken()) refreshMgrMatchReports(); break;
+    case 'points_updated':   refreshPoints(); if (getManagerToken()) refreshMgrPoints(); break;
+    case 'shop_order_created':
+    case 'shop_order_updated': if (getManagerToken()) refreshMgrShopOrders(); break;
+    case 'suggestion_created':
+    case 'suggestion_updated': if (getManagerToken()) refreshMgrSuggestions(); break;
+    case 'complaint_created':
+    case 'complaint_updated': if (getManagerToken()) refreshMgrComplaints(); if (getPlayerToken()) refreshPlayerPortal(); break;
+    case 'conversation_created':
+    case 'conversation_message':
+    case 'conversation_updated': if (getManagerToken()) refreshMgrConversations(); if (getPlayerToken()) refreshPlayerPortal(); break;
+    case 'player_request_created':
+    case 'player_request_updated': if (getManagerToken()) refreshMgrRequests(); if (getPlayerToken()) refreshPlayerPortal(); break;
+    case 'lineup_updated': if (getManagerToken()) refreshMgrAvailability(); break;
+    case 'motm_started':     onWSMOTMStarted(data); break;
+    case 'motm_vote_cast':   onWSVoteCast(data); break;
+    case 'motm_closed':      onWSMOTMClosed(data); break;
+    case 'scrim_created':    onWSScrimCreated(data); break;
+    case 'scrim_rsvp':       onWSScrimRSVP(data); if (getPlayerToken()) refreshPlayerPortal(); if (getManagerToken()) refreshMgrAvailability(); break;
+    case 'scrim_deleted':    onWSScrimDeleted(data); break;
+    case 'announcement_posted': toast('New announcement posted in Discord!'); break;
+    case 'manager_role_added': if (getManagerToken()) refreshMgrPermissionRoles(); break;
+    case 'manager_role_removed': if (getManagerToken()) refreshMgrPermissionRoles(); break;
+    case 'activity_action_requested': if (getManagerToken()) setTimeout(refreshMgrActivity,1200); break;
+  }
+}
+
+// ─── API HELPERS ───────────────────────────────────────────────────────────────
+const MANAGER_TOKEN_KEY = 'pja_manager_token';
+const MANAGER_USER_KEY = 'pja_manager_user';
+const PLAYER_TOKEN_KEY = 'pja_player_token';
+const PLAYER_USER_KEY = 'pja_player_user';
+const PLAYER_ID_KEY = 'pja_player_id';
+let PLAYER_DATA = null;
+
+function getManagerToken() {
+  return sessionStorage.getItem(MANAGER_TOKEN_KEY) || '';
+}
+
+function getManagerUser() {
+  return sessionStorage.getItem(MANAGER_USER_KEY) || '';
+}
+
+function setManagerSession(token, username) {
+  sessionStorage.setItem(MANAGER_TOKEN_KEY, token);
+  sessionStorage.setItem(MANAGER_USER_KEY, username);
+  updateManagerAuthUI();
+}
+
+function clearManagerSession() {
+  sessionStorage.removeItem(MANAGER_TOKEN_KEY);
+  sessionStorage.removeItem(MANAGER_USER_KEY);
+  updateManagerAuthUI();
+}
+
+function updateManagerAuthUI() {
+  const loggedIn = Boolean(getManagerToken());
+  document.getElementById('manager-login-card').style.display = loggedIn ? 'none' : 'block';
+  document.getElementById('manager-session-card').style.display = loggedIn ? 'block' : 'none';
+  document.getElementById('manager-tools').style.display = loggedIn ? 'block' : 'none';
+  document.getElementById('manager-session-user').textContent = loggedIn ? getManagerUser() : '—';
+}
+
+async function apiFetch(path, opts = {}) {
+  const headers = {'Content-Type': 'application/json', ...(opts.headers || {})};
+  const body = opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)
+    ? JSON.stringify(opts.body)
+    : opts.body;
+  const res = await fetch(API + path, {
+    ...opts,
+    headers,
+    body,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({detail: res.statusText}));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+async function apiAuth(path, method, body) {
+  const token = getManagerToken();
+  if (!token) {
+    throw new Error('Sign in as a manager to continue.');
+  }
+  try {
+    return await apiFetch(path, {
+      method,
+      headers: {'Authorization': `Bearer ${token}`, 'X-Client': 'website'},
+      body
+    });
+  } catch (err) {
+    if (String(err.message || '').toLowerCase().includes('invalid manager session')) {
+      clearManagerSession();
+    }
+    throw err;
+  }
+}
+
+function getPlayerToken(){ return sessionStorage.getItem(PLAYER_TOKEN_KEY)||''; }
+function getPlayerUser(){ return sessionStorage.getItem(PLAYER_USER_KEY)||''; }
+function setPlayerSession(token, username, discordId){ sessionStorage.setItem(PLAYER_TOKEN_KEY,token);sessionStorage.setItem(PLAYER_USER_KEY,username);sessionStorage.setItem(PLAYER_ID_KEY,discordId);updatePlayerAuthUI(); }
+function clearPlayerSession(){ sessionStorage.removeItem(PLAYER_TOKEN_KEY);sessionStorage.removeItem(PLAYER_USER_KEY);sessionStorage.removeItem(PLAYER_ID_KEY);PLAYER_DATA=null;updatePlayerAuthUI(); }
+function updatePlayerAuthUI(){ const logged=Boolean(getPlayerToken());document.getElementById('player-login-card').style.display=logged?'none':'block';document.getElementById('player-session').style.display=logged?'block':'none';document.getElementById('player-session-name').textContent=logged?getPlayerUser():'—'; }
+async function apiPlayer(path, method='GET', body){ const token=getPlayerToken();if(!token) throw new Error('Use /portal login in Discord first.');try{return await apiFetch(path,{method,headers:{'Authorization':`Bearer ${token}`},body});}catch(err){if(String(err.message||'').toLowerCase().includes('player session'))clearPlayerSession();throw err;} }
+async function playerLogin(){ const code=document.getElementById('player-login-code').value.trim().toUpperCase();const msg=document.getElementById('player-login-msg');if(!code){msg.className='alert alert-error';msg.textContent='Enter the code from /portal login.';return;}try{const auth=await apiFetch('/player/auth/redeem',{method:'POST',body:{code}});setPlayerSession(auth.access_token,auth.username,auth.discord_id);document.getElementById('player-login-code').value='';msg.className='alert alert-success';msg.textContent='Signed in.';refreshPlayerPortal();}catch(err){msg.className='alert alert-error';msg.textContent=err.message;} }
+function playerLogout(){clearPlayerSession();}
+
+async function managerLogin() {
+  const username = document.getElementById('mgr-username').value.trim();
+  const password = document.getElementById('mgr-password').value;
+  const msg = document.getElementById('manager-login-msg');
+  msg.className = 'hidden';
+  if (!username || !password) {
+    msg.className = 'alert alert-error';
+    msg.textContent = 'Username and password are required.';
+    return;
+  }
+  try {
+    const auth = await apiFetch('/auth/login', {
+      method: 'POST',
+      body: {username, password}
+    });
+    setManagerSession(auth.access_token, auth.username);
+    document.getElementById('mgr-password').value = '';
+    msg.className = 'alert alert-success';
+    msg.textContent = 'Signed in successfully.';
+    refreshManager();
+  } catch (err) {
+    msg.className = 'alert alert-error';
+    msg.textContent = err.message;
+  }
+}
+
+function managerLogout() {
+  clearManagerSession();
+  document.getElementById('manager-login-msg').className = 'hidden';
+}
+
+// ─── NAV ───────────────────────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.getElementById('nav-' + id)?.classList.add('active');
+  window.scrollTo(0, 0);
+  ({home:refreshHome, tryout:refreshTryouts, roster:refreshRoster, stats:refreshStats,
+    points:refreshPoints, motm:refreshMOTM, scrims:refreshScrims, player:refreshPlayerPortal, manager:refreshManager}[id]||(() => {}))();
+}
+function openTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'tab-apps') refreshMgrApps();
+  if (id === 'tab-match-reports') refreshMgrMatchReports();
+  if (id === 'tab-points-mgr') refreshMgrPoints();
+  if (id === 'tab-shop-orders') refreshMgrShopOrders();
+  if (id === 'tab-suggestions') refreshMgrSuggestions();
+  if (id === 'tab-complaints') refreshMgrComplaints();
+  if (id === 'tab-conversations') refreshMgrConversations();
+  if (id === 'tab-requests') refreshMgrRequests();
+  if (id === 'tab-availability-mgr') refreshMgrAvailability();
+  if (id === 'tab-roster-mgr') refreshMgrRoster();
+  if (id === 'tab-motm-mgr') refreshMgrPolls();
+  if (id === 'tab-permissions') refreshMgrPermissionRoles();
+  if (id === 'tab-activity-review') refreshMgrActivityGuilds();
+  if (id === 'tab-welcomer') refreshMgrActivityGuilds(true);
+}
+
+// ─── TOAST ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+// ─── HOME ──────────────────────────────────────────────────────────────────────
+async function refreshHome() {
+  try {
+    const [roster, tryouts, polls, scrims] = await Promise.all([
+      apiFetch('/roster'), apiFetch('/tryouts?status=pending'),
+      apiFetch('/motm?active=true'), apiFetch('/scrims')
+    ]);
+    document.getElementById('hs-players').textContent = roster.length;
+    document.getElementById('hs-pending').textContent = tryouts.length;
+    document.getElementById('hs-polls').textContent = polls.length;
+    document.getElementById('hs-scrims').textContent = scrims.length;
+    // Show LIVE badge if active polls exist
+    document.getElementById('motm-badge').style.display = polls.length ? '' : 'none';
+  } catch(e) {}
+}
+
+// ─── TRYOUTS ───────────────────────────────────────────────────────────────────
+async function submitTryout() {
+  const u = document.getElementById('t-username').value.trim();
+  const p = document.getElementById('t-position').value;
+  const o = document.getElementById('t-overall').value.trim();
+  const a = document.getElementById('t-avail').value;
+  const e = document.getElementById('t-exp').value.trim();
+  const r = document.getElementById('t-reason').value.trim();
+  const d = document.getElementById('t-discord').value.trim();
+  const alertEl = document.getElementById('tryout-alert');
+  alertEl.className = 'hidden';
+  if (!u || !p || !o || !a || !e || !r || !/^\d{17,20}$/.test(d)) {
+    alertEl.className = 'alert alert-error';
+    alertEl.textContent = '❌ Fill in every required field and enter a valid Discord User ID.';
+    return;
+  }
+  const btn = document.getElementById('tryout-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  try {
+    await apiFetch('/tryouts', {
+      method: 'POST',
+      headers: {'X-Client': 'website'},
+      body: {
+      discord_id: d, discord_tag: d,
+      username: u, position: p, overall: o,
+      experience: e, reason: r, availability: a
+      }
+    });
+    alertEl.className = 'alert alert-success';
+    alertEl.textContent = '✅ Application submitted! You\'ll hear back from management via Discord.';
+    ['t-username','t-position','t-overall','t-avail','t-exp','t-reason','t-discord']
+      .forEach(id => { document.getElementById(id).value = ''; });
+    refreshTryouts();
+    refreshHome();
+  } catch(err) {
+    alertEl.className = 'alert alert-error';
+    alertEl.textContent = '❌ ' + err.message;
+  }
+  btn.disabled = false; btn.textContent = 'Submit Application';
+}
+
+async function refreshTryouts() {
+  const el = document.getElementById('tryout-list');
+  try {
+    const apps = await apiFetch('/tryouts');
+    if (!apps.length) { el.innerHTML = '<div class="text-muted text-sm">No applications yet.</div>'; return; }
+    const statusBadge = {pending:'badge-yellow', accepted:'badge-green', denied:'badge-red', trial:'badge-blue'};
+    el.innerHTML = apps.slice(0,8).map(a => `
+      <div class="app-card">
+        <div class="app-header">
+          <div><span class="fw-700">${esc(a.username)}</span> — ${esc(a.position)}
+            <div class="app-meta">${esc(a.overall)} OVR</div>
+          </div>
+          <span class="badge ${statusBadge[a.status]||'badge-yellow'}">${a.status}</span>
+        </div>
+        <div class="app-body">${esc(a.reason||'').slice(0,160)}${(a.reason||'').length>160?'…':''}</div>
+        <div class="text-sm text-muted">${a.submitted_at?.slice(0,10)||''}</div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="text-muted text-sm">Could not load applications — backend offline?</div>';
+  }
+}
+
+function onWSTryoutCreated(app) {
+  toast(`New tryout application from ${app.username}!`);
+  if (document.getElementById('page-tryout').classList.contains('active')) refreshTryouts();
+  refreshHome();
+}
+function onWSTryoutReviewed(app) {
+  const labels = {accepted:'✅ Accepted', denied:'❌ Denied', trial:'🔵 Trial'};
+  toast(`${app.username} — ${labels[app.status]||app.status}`);
+  if (document.getElementById('page-tryout').classList.contains('active')) refreshTryouts();
+  if (document.getElementById('tab-apps').classList.contains('active')) refreshMgrApps();
+  refreshHome();
+}
+
+// ─── ROSTER ────────────────────────────────────────────────────────────────────
+async function refreshRoster() {
+  const body = document.getElementById('roster-body');
+  const loading = document.getElementById('roster-loading');
+  const empty = document.getElementById('roster-empty');
+  loading?.classList.remove('hidden');
+  body.innerHTML = '';
+  try {
+    const players = await apiFetch('/roster');
+    loading?.classList.add('hidden');
+    if (!players.length) { empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    const posBadge = {Goalkeeper:'badge-blue',Defender:'badge-green',Midfielder:'badge-purple',Striker:'badge-red',Winger:'badge-yellow',Sweeper:'badge-blue'};
+    const stsBadge = {Active:'badge-green',Trial:'badge-blue',Injured:'badge-yellow',Inactive:'badge-red',Loaned:'badge-purple'};
+    body.innerHTML = players.map(p => `
+      <tr>
+        <td><div class="ovr">${p.overall}</div></td>
+        <td><div class="player-name">${esc(p.username)}</div><div class="player-discord">${esc(p.discord_tag||'—')}</div></td>
+        <td><span class="badge ${posBadge[p.position]||'badge-blue'}">${p.position}</span></td>
+        <td><span class="badge ${stsBadge[p.status]||'badge-green'}">${p.status}</span></td>
+        <td class="text-muted text-sm">${p.joined_at?.slice(0,10)||''}</td>
+      </tr>`).join('');
+  } catch(e) {
+    loading?.classList.add('hidden');
+    body.innerHTML = '<tr><td colspan="5" class="text-muted text-sm" style="padding:1.5rem;text-align:center">Could not load roster — backend offline?</td></tr>';
+  }
+}
+
+// ─── STATS ─────────────────────────────────────────────────────────────────────
+async function submitStats() {
+  const matchId = document.getElementById('s-matchid').value.trim();
+  const opp = document.getElementById('s-opp').value.trim();
+  const result = document.getElementById('s-result').value.trim();
+  const discordId = document.getElementById('s-discordid').value.trim();
+  const username = document.getElementById('s-username').value.trim();
+  const alertEl = document.getElementById('stats-alert');
+  alertEl.className = 'hidden';
+  if (!matchId || !opp || !result || !discordId) {
+    alertEl.className = 'alert alert-error';
+    alertEl.textContent = '❌ Match ID, Opponent, Result and Discord ID are required.';
+    return;
+  }
+  try {
+    await apiAuth('/stats', 'POST', {
+      discord_id: discordId, discord_tag: username || discordId,
+      match_id: matchId, opponent: opp, result,
+      player_username: username,
+      goals: +document.getElementById('s-goals').value||0,
+      assists: +document.getElementById('s-assists').value||0,
+      saves: +document.getElementById('s-saves').value||0,
+      shots: +document.getElementById('s-shots').value||0,
+      passes: +document.getElementById('s-passes').value||0,
+      tackles: +document.getElementById('s-tackles').value||0,
+      interceptions: 0,
+    });
+    alertEl.className = 'alert alert-success';
+    alertEl.textContent = '✅ Stats submitted for manager approval. Points are awarded after approval.';
+    refreshStats();
+  } catch(err) {
+    alertEl.className = 'alert alert-error';
+    alertEl.textContent = '❌ ' + err.message;
+  }
+}
+
+async function refreshStats() {
+  // Leaderboard
+  const lb = document.getElementById('leaderboard-list');
+  try {
+    const board = await apiFetch('/stats/leaderboard');
+    const medals = ['🥇','🥈','🥉'];
+    lb.innerHTML = board.slice(0,8).map((e,i) => `
+      <div class="card" style="margin-bottom:.75rem;display:flex;align-items:center;gap:1rem">
+        <div style="font-size:1.3rem;min-width:28px">${medals[i]||`${i+1}.`}</div>
+        <div style="flex:1"><div class="fw-700">${esc(e.username)}</div><div class="text-sm text-muted">${e.matches} match(es)</div></div>
+        <div class="text-sm text-right"><div>⚽ ${e.goals}</div><div class="text-muted">🅰️ ${e.assists}</div></div>
+      </div>`).join('') || '<div class="text-muted text-sm">No stats yet.</div>';
+  } catch(e) { lb.innerHTML = '<div class="text-muted text-sm">Offline</div>'; }
+
+  // Match reports
+  const mr = document.getElementById('match-reports');
+  try {
+    const all = await apiFetch('/stats');
+    const byMatch = {};
+    all.forEach(s => {
+      if (!byMatch[s.match_id]) byMatch[s.match_id] = {id:s.match_id,opponent:s.opponent,result:s.result,date:s.submitted_at?.slice(0,10),players:[]};
+      byMatch[s.match_id].players.push(s);
+    });
+    const matches = Object.values(byMatch).slice(0,6);
+    mr.innerHTML = matches.map(m => `
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
+          <div><span class="fw-700">vs ${esc(m.opponent)}</span>
+            <span class="badge ${m.result?.toUpperCase().startsWith('W')?'badge-green':m.result?.toUpperCase().startsWith('L')?'badge-red':'badge-yellow'}" style="margin-left:8px">${esc(m.result)}</span>
+          </div>
+          <span class="text-sm text-muted">${m.id} · ${m.date||''}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem">
+          ${m.players.map(p => `
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.75rem">
+              <div class="fw-700 text-sm" style="margin-bottom:.5rem">${esc(p.player_username||p.discord_tag||p.discord_id)}</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">
+                <div class="stat-box"><div class="sv">${p.goals}</div><div class="sl">G</div></div>
+                <div class="stat-box"><div class="sv">${p.assists}</div><div class="sl">A</div></div>
+                <div class="stat-box"><div class="sv">${p.saves}</div><div class="sl">SV</div></div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`).join('') || '<div class="text-muted text-sm">No match reports yet.</div>';
+  } catch(e) { mr.innerHTML = '<div class="text-muted text-sm">Offline</div>'; }
+}
+
+// ─── POINTS & SHOP ─────────────────────────────────────────────────────────────
+async function refreshPoints() {
+  const boardEl = document.getElementById('points-leaderboard');
+  const shopEl = document.getElementById('shop-catalog');
+  if (!boardEl || !shopEl) return;
+  try {
+    const [board, shop] = await Promise.all([apiFetch('/points/leaderboard'), apiFetch('/shop')]);
+    const medals = ['🥇','🥈','🥉'];
+    boardEl.innerHTML = board.slice(0,10).map((entry,index) => `
+      <div class="card" style="margin-bottom:.65rem;display:flex;align-items:center;gap:1rem">
+        <div style="font-size:1.3rem;min-width:32px">${medals[index]||`${index+1}.`}</div>
+        <div style="flex:1" class="fw-700">${esc(entry.username||entry.discord_id)}</div>
+        <div class="fw-700" style="color:var(--blue-light)">${Number(entry.balance||0).toLocaleString()} pts</div>
+      </div>`).join('') || '<div class="text-muted text-sm">No points earned yet.</div>';
+    shopEl.innerHTML = shop.map(item => `
+      <div class="card">
+        <div class="fw-700" style="margin-bottom:.35rem">${esc(item.name)}</div>
+        <div style="font-family:var(--display);font-size:1.35rem;color:var(--blue-light);margin-bottom:.55rem">${Number(item.price).toLocaleString()} pts</div>
+        <div class="text-sm text-muted">${esc(item.description)}</div>
+      </div>`).join('');
+  } catch(err) {
+    boardEl.innerHTML = '<div class="text-muted text-sm">Could not load points.</div>';
+    shopEl.innerHTML = '<div class="text-muted text-sm">Could not load shop.</div>';
+  }
+}
+
+async function lookupPoints() {
+  const id = document.getElementById('points-discord-id').value.trim();
+  const el = document.getElementById('points-player-result');
+  if (!/^\d{15,22}$/.test(id)) { el.innerHTML = '<div class="alert alert-error">Enter a valid Discord User ID.</div>'; return; }
+  try {
+    const profile = await apiFetch(`/points/${id}`);
+    el.innerHTML = `<div class="alert alert-success"><strong>${esc(profile.username)}</strong> has <strong>${Number(profile.balance||0).toLocaleString()} points</strong>.</div>`;
+  } catch(err) { el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`; }
+}
+
+// ─── MOTM ──────────────────────────────────────────────────────────────────────
+async function refreshMOTM() {
+  const activeEl = document.getElementById('motm-active-section');
+  const pastEl = document.getElementById('motm-past-section');
+  try {
+    const [active, past] = await Promise.all([
+      apiFetch('/motm?active=true'), apiFetch('/motm?active=false')
+    ]);
+    renderActivePolls(active, activeEl);
+    renderPastPolls(past, pastEl);
+  } catch(e) {
+    activeEl.innerHTML = '<div class="text-muted text-sm">Could not load polls — backend offline?</div>';
+  }
+}
+
+function renderActivePolls(polls, container) {
+  if (!polls.length) {
+    container.innerHTML = '<div class="text-muted text-sm" style="padding:.5rem 0">No active MOTM votes right now.</div>';
+    return;
+  }
+  container.innerHTML = polls.map(p => {
+    const total = Object.values(p.votes).reduce((a,b) => a+b, 0);
+    const myVote = SESSION_VOTES[p.id];
+    return `
+      <div class="card" style="margin-bottom:1.5rem" id="poll-${p.id}">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
+          <span class="fw-700" style="font-size:1.1rem">⭐ MOTM — vs ${esc(p.opponent)}</span>
+          <span class="live-badge"><span class="live-dot"></span>Live</span>
+          <span class="text-muted text-sm">${total} vote(s) · Match ${esc(p.match_id)}</span>
+        </div>
+        <div class="vote-grid">
+          ${p.nominees.map(name => {
+            const votes = p.votes[name]||0;
+            const pct = total ? Math.round((votes/total)*100) : 0;
+            return `
+              <div class="vote-card ${myVote===name?'my-vote':''}" id="vc-${p.id}-${safeid(name)}" onclick="castVote('${esc(p.id)}','${esc(name)}')">
+                <div class="vote-name">${esc(name)}</div>
+                <div class="vote-count" id="vc-count-${p.id}-${safeid(name)}">${votes}</div>
+                <div class="text-sm text-muted">${pct}%</div>
+                <div class="progress-bar"><div class="progress-fill" id="vc-bar-${p.id}-${safeid(name)}" style="width:${pct}%"></div></div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderPastPolls(polls, container) {
+  if (!polls.length) { container.innerHTML = '<div class="text-muted text-sm">No past results yet.</div>'; return; }
+  container.innerHTML = polls.slice(0,5).map(p => {
+    const total = Object.values(p.votes).reduce((a,b) => a+b, 0);
+    const sorted = Object.entries(p.votes).sort((a,b) => b[1]-a[1]);
+    const winner = p.winner;
+    return `
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
+          <div><span class="fw-700">vs ${esc(p.opponent)}</span> <span class="text-muted text-sm">· ${esc(p.match_id)}</span></div>
+          <span class="badge badge-yellow">🏆 ${esc(winner||'—')}</span>
+        </div>
+        ${sorted.map(([name,cnt]) => {
+          const pct = total ? Math.round((cnt/total)*100) : 0;
+          return `
+            <div style="margin-bottom:.5rem">
+              <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:3px">
+                <span>${name===winner?'🏆 ':''}${esc(name)}</span>
+                <span class="text-muted">${cnt} (${pct}%)</span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill ${name===winner?'gold':''}" style="width:${pct}%"></div></div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }).join('');
+}
+
+async function castVote(pollId, nominee) {
+  if (SESSION_VOTES[pollId]) { toast('You already voted in this session!', 'error'); return; }
+  const voterTag = prompt('Enter your Discord tag or username to vote:');
+  if (!voterTag?.trim()) return;
+  try {
+    const poll = await apiFetch(`/motm/${pollId}/vote`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({voter_id: `web_${Date.now()}`, voter_tag: voterTag, nominee})
+    });
+    SESSION_VOTES[pollId] = nominee;
+    toast(`Voted for ${nominee}! ⭐`);
+    updatePollUI(poll);
+  } catch(err) {
+    toast(err.message, 'error');
+  }
+}
+
+function updatePollUI(poll) {
+  const total = Object.values(poll.votes).reduce((a,b) => a+b, 0);
+  poll.nominees.forEach(name => {
+    const cnt = poll.votes[name]||0;
+    const pct = total ? Math.round((cnt/total)*100) : 0;
+    const cntEl = document.getElementById(`vc-count-${poll.id}-${safeid(name)}`);
+    const barEl = document.getElementById(`vc-bar-${poll.id}-${safeid(name)}`);
+    const cardEl = document.getElementById(`vc-${poll.id}-${safeid(name)}`);
+    if (cntEl) cntEl.textContent = cnt;
+    if (barEl) barEl.style.width = pct + '%';
+    if (cardEl && SESSION_VOTES[poll.id] === name) cardEl.classList.add('my-vote');
+  });
+}
+
+function onWSVoteCast(poll) {
+  // Update the card live if it's currently on screen
+  if (!document.getElementById('page-motm').classList.contains('active')) return;
+  const card = document.getElementById(`poll-${poll.id}`);
+  if (card) updatePollUI(poll);
+}
+function onWSMOTMStarted(poll) {
+  toast(`⭐ MOTM vote started: vs ${poll.opponent}!`);
+  refreshMOTM(); refreshHome();
+}
+function onWSMOTMClosed(poll) {
+  toast(`🏆 MOTM closed — Winner: ${poll.winner||'TBD'}`);
+  refreshMOTM(); refreshHome();
+}
+
+// ─── SCRIMS ────────────────────────────────────────────────────────────────────
+async function refreshScrims() {
+  const el = document.getElementById('scrims-list');
+  const empty = document.getElementById('scrims-empty');
+  el.innerHTML = '<div class="loading-state"><div class="spinner"></div>Loading scrims...</div>';
+  try {
+    const scrims = await apiFetch('/scrims');
+    empty.classList.toggle('hidden', scrims.length > 0);
+    el.innerHTML = scrims.map(s => renderScrimCard(s)).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="text-muted text-sm">Could not load scrims — backend offline?</div>';
+  }
+}
+
+function renderScrimCard(s) {
+  const rsvpLabel = v => typeof v === 'object' ? `${v.username||'Player'}${v.note?' — '+v.note:''}` : String(v);
+  const going = Object.values(s.going||{}).map(rsvpLabel);
+  const maybe = Object.values(s.maybe||{}).map(rsvpLabel);
+  const cant = Object.values(s.cant||{}).map(rsvpLabel);
+  return `
+    <div class="rsvp-card" id="scrim-${s.id}">
+      <div class="rsvp-header">
+        <div><div class="fw-700">⚽ ${esc(s.match_type)} vs ${esc(s.opponent)}</div>
+          <div class="text-muted text-sm mt-1">🕐 ${esc(s.match_time)}${s.notes?' · '+esc(s.notes):''}</div>
+        </div>
+        <span class="badge badge-blue">${esc(s.match_type)}</span>
+      </div>
+      <div class="rsvp-body">
+        <div class="rsvp-col"><div class="col-label going">✅ Going (${going.length})</div><div class="player-list">${going.map(esc).join('<br/>')||'—'}</div></div>
+        <div class="rsvp-col"><div class="col-label maybe">🟡 Maybe (${maybe.length})</div><div class="player-list">${maybe.map(esc).join('<br/>')||'—'}</div></div>
+        <div class="rsvp-col"><div class="col-label cant">❌ Can't Go (${cant.length})</div><div class="player-list">${cant.map(esc).join('<br/>')||'—'}</div></div>
+      </div>
+      <div class="rsvp-actions">
+        <button class="btn btn-sm btn-green" onclick="scrimRSVP('${s.id}','going')">I'm Going</button>
+        <button class="btn btn-sm btn-yellow" onclick="scrimRSVP('${s.id}','maybe')">Maybe</button>
+        <button class="btn btn-sm btn-red" onclick="scrimRSVP('${s.id}','cant')">Can't Go</button>
+      </div>
+    </div>`;
+}
+
+async function scrimRSVP(scrimId, status) {
+  const username = prompt('Enter your VRFS username:');
+  if (!username?.trim()) return;
+  const discordId = `web_${username.trim().replace(/\s+/g,'_')}`;
+  try {
+    const scrim = await apiFetch(`/scrims/${scrimId}/rsvp`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({discord_id: discordId, username: username.trim(), status})
+    });
+    SESSION_RSVP[scrimId] = status;
+    const labels = {going:"You're going ✅", maybe:'Marked as maybe 🟡', cant:"Can't go ❌"};
+    toast(labels[status]);
+    const card = document.getElementById(`scrim-${scrimId}`);
+    if (card) card.outerHTML = renderScrimCard(scrim);
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+function onWSScrimCreated(s) {
+  toast(`⚽ New scrim posted: vs ${s.opponent} (${s.match_time})`);
+  if (document.getElementById('page-scrims').classList.contains('active')) refreshScrims();
+  refreshHome();
+}
+function onWSScrimRSVP(s) {
+  const card = document.getElementById(`scrim-${s.id}`);
+  if (card) card.outerHTML = renderScrimCard(s);
+}
+function onWSScrimDeleted(d) {
+  document.getElementById(`scrim-${d.id}`)?.remove();
+}
+
+// ─── PLAYER PORTAL ─────────────────────────────────────────────────────────────
+function openPlayerPanel(id,btn){document.querySelectorAll('.player-tab-panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.player-tab-btn').forEach(b=>b.classList.remove('active'));document.getElementById(id).classList.add('active');btn.classList.add('active');}
+function statusBadge(status){return `<span class="status-pill">${esc(String(status||'pending').replaceAll('_',' '))}</span>`;}
+function statTotals(matches){return matches.reduce((a,m)=>{a.goals+=m.goals||0;a.assists+=m.assists||0;a.saves+=m.saves||0;a.tackles+=m.tackles||0;a.matches++;return a;},{goals:0,assists:0,saves:0,tackles:0,matches:0});}
+async function refreshPlayerPortal(){updatePlayerAuthUI();if(!getPlayerToken())return;try{PLAYER_DATA=await apiPlayer('/player/dashboard');renderPlayerPortal(PLAYER_DATA);}catch(err){toast(err.message,'error');}}
+function renderPlayerPortal(d){const profile=d.profile||{};const totals=statTotals(d.matches||[]);const balance=Number(d.points?.balance||0);document.getElementById('player-overview-content').innerHTML=`<div class="grid-3"><div class="card"><div class="text-muted text-sm">Points</div><div style="font-size:2rem;font-weight:800">${balance.toLocaleString()}</div></div><div class="card"><div class="text-muted text-sm">Approved Matches</div><div style="font-size:2rem;font-weight:800">${totals.matches}</div></div><div class="card"><div class="text-muted text-sm">Open Requests</div><div style="font-size:2rem;font-weight:800">${(d.requests||[]).filter(x=>!['completed','declined'].includes(x.status)).length}</div></div></div><div class="card mt-2"><div class="fw-700">${esc(profile.username||d.account.username)}</div><div class="text-muted text-sm">${esc(profile.position||'No roster position')} · ${profile.overall||'—'} OVR · ${esc(profile.status||'Not on roster')}</div><div class="mt-2">Goals <strong>${totals.goals}</strong> · Assists <strong>${totals.assists}</strong> · Saves <strong>${totals.saves}</strong> · Tackles <strong>${totals.tackles}</strong></div></div>`;
+const initial=(profile.username||d.account.username||'?').slice(0,1).toUpperCase();document.getElementById('player-card-content').innerHTML=`<div class="player-card-ui"><div class="pc-head"><div><div class="pc-ovr">${profile.overall||70}</div><div class="pc-pos">${esc((profile.position||'PJA').slice(0,3).toUpperCase())}</div></div><div class="nav-logo">⚡</div></div><div class="pc-avatar">${esc(initial)}</div><div class="pc-name">${esc(profile.username||d.account.username)}</div><div class="pc-stats"><div class="pc-stat"><strong>${totals.goals}</strong>GLS</div><div class="pc-stat"><strong>${totals.assists}</strong>AST</div><div class="pc-stat"><strong>${totals.saves}</strong>SAV</div><div class="pc-stat"><strong>${totals.tackles}</strong>TCK</div><div class="pc-stat"><strong>${totals.matches}</strong>MAT</div><div class="pc-stat"><strong>${balance}</strong>PTS</div></div></div>`;
+document.getElementById('player-history-content').innerHTML=(d.matches||[]).slice(0,15).map(m=>`<div class="card" style="margin-bottom:.6rem"><div class="fw-700">vs ${esc(m.opponent)} · ${esc(m.result)}</div><div class="text-muted text-sm">${esc(m.match_id)} · G ${m.goals||0} · A ${m.assists||0} · Saves ${m.saves||0} · Tackles ${m.tackles||0}</div><div class="text-sm mt-1"><strong>+${m.points_awarded||0} points</strong> · Card rating change: ${(m.card_rating_change||0)>0?'+':''}${m.card_rating_change||0}</div></div>`).join('')||'<div class="text-muted text-sm">No approved matches yet.</div>';
+document.getElementById('player-shop-content').innerHTML=`<div class="grid-3">${(d.shop||[]).map(i=>`<div class="card"><div class="fw-700">${esc(i.name)}</div><div class="text-muted text-sm mt-1">${esc(i.description)}</div><div class="mt-2"><strong>${Number(i.price).toLocaleString()} points</strong></div><button class="btn btn-primary btn-sm mt-2" onclick="playerBuyShop('${esc(i.id)}')">Buy</button></div>`).join('')}</div><div class="fw-700 mt-3">My Orders &amp; Inventory</div>${(d.orders||[]).map(o=>`<div class="card mt-1"><strong>${esc(o.item_name)}</strong> ${statusBadge(o.status)}<div class="text-muted text-sm">${Number(o.price).toLocaleString()} points${o.manager_note?' · '+esc(o.manager_note):''}</div></div>`).join('')||'<div class="text-muted text-sm mt-1">No purchases yet.</div>'}`;
+renderPlayerConversations(d.conversations||[]);renderPlayerRequests(d.requests||[]);renderPlayerAvailability(d.scrims||[]);document.getElementById('player-feedback-content').innerHTML=[...(d.suggestions||[]).map(x=>({...x,kind:'Suggestion'})),...(d.complaints||[]).map(x=>({...x,kind:'Complaint'}))].sort((a,b)=>String(b.submitted_at).localeCompare(String(a.submitted_at))).map(x=>`<div class="card mt-1"><strong>${x.kind}: ${esc(x.category)}</strong> ${statusBadge(x.status)}<div class="text-sm mt-1">${esc(x.message)}</div>${x.reply?`<div class="alert alert-info mt-1"><strong>Manager:</strong> ${esc(x.reply)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm mt-2">No suggestions or complaints yet.</div>';}
+async function playerBuyShop(itemId){if(!confirm('Spend points on this reward?'))return;try{await apiPlayer('/player/shop/purchase','POST',{item_id:itemId});toast('Purchase submitted for manager fulfillment.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+function renderPlayerConversations(items){document.getElementById('player-conversations-content').innerHTML=items.map(c=>`<div class="card" style="margin-bottom:1rem"><div style="display:flex;justify-content:space-between;gap:.5rem"><strong>${esc(c.subject)}</strong>${statusBadge(c.status)}</div><div class="text-muted text-sm">${esc(c.category)} · ${esc(c.id)}</div><div class="chat-thread mt-1">${(c.messages||[]).map(m=>`<div class="chat-msg ${m.sender_type==='manager'?'manager':'player'}"><strong>${esc(m.sender_name)}</strong><div>${esc(m.message)}</div><div class="text-muted" style="font-size:.7rem">${esc((m.created_at||'').slice(0,16).replace('T',' '))}</div></div>`).join('')}</div>${c.status!=='closed'?`<div class="form-group mt-1"><textarea id="reply-${safeid(c.id)}" placeholder="Reply privately..."></textarea></div><button class="btn btn-primary btn-sm" onclick="playerReplyConversation('${esc(c.id)}')">Send Reply</button>`:''}</div>`).join('')||'<div class="text-muted text-sm">No conversations yet.</div>';}
+async function playerStartConversation(){const subject=document.getElementById('pc-subject').value.trim(),category=document.getElementById('pc-category').value,message=document.getElementById('pc-message').value.trim();if(!subject||!message){toast('Subject and message are required.','error');return;}try{await apiPlayer('/player/conversations','POST',{subject,category,message,attachment_url:''});document.getElementById('pc-subject').value='';document.getElementById('pc-message').value='';toast('Private message sent.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+async function playerReplyConversation(id){const message=document.getElementById('reply-'+safeid(id)).value.trim();if(!message)return;try{await apiPlayer(`/player/conversations/${encodeURIComponent(id)}/messages`,'POST',{message,attachment_url:''});toast('Reply sent.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+function renderPlayerRequests(items){document.getElementById('player-requests-content').innerHTML=items.map(r=>`<div class="card" style="margin-bottom:.6rem"><div style="display:flex;justify-content:space-between"><strong>${esc(r.request_type)}</strong>${statusBadge(r.status)}</div><div class="text-sm mt-1">${esc(r.details)}</div>${r.reply?`<div class="alert alert-info mt-1"><strong>Manager:</strong> ${esc(r.reply)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm">No requests yet.</div>';}
+async function playerSubmitRequest(){const request_type=document.getElementById('pr-type').value,details=document.getElementById('pr-details').value.trim();if(!details){toast('Explain the request.','error');return;}try{await apiPlayer('/player/requests','POST',{request_type,details,attachment_url:''});document.getElementById('pr-details').value='';toast('Request submitted.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+function renderPlayerAvailability(scrims){document.getElementById('player-availability-content').innerHTML=scrims.map(s=>`<div class="card" style="margin-bottom:.75rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time)} · ${esc(s.id)}</div><div class="mt-1">Current: ${statusBadge(s.my_status==='going'?'available':s.my_status==='cant'?'unavailable':s.my_status)}</div><div class="form-grid mt-1"><select id="pa-status-${safeid(s.id)}"><option value="going" ${s.my_status==='going'?'selected':''}>Available</option><option value="maybe" ${s.my_status==='maybe'?'selected':''}>Maybe</option><option value="cant" ${s.my_status==='cant'?'selected':''}>Unavailable</option></select><input id="pa-note-${safeid(s.id)}" value="${esc(s.my_note||'')}" placeholder="Optional note"/></div><button class="btn btn-primary btn-sm mt-1" onclick="playerSetAvailability('${esc(s.id)}')">Save Availability</button>${s.lineup?`<div class="alert alert-info mt-1"><strong>Lineup:</strong><br/>${esc(s.lineup)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm">No upcoming matches.</div>';}
+async function playerSetAvailability(id){const status=document.getElementById('pa-status-'+safeid(id)).value,note=document.getElementById('pa-note-'+safeid(id)).value.trim();try{await apiPlayer('/player/availability','POST',{scrim_id:id,status,note});toast('Availability updated.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+async function playerSubmitSuggestion(){const category=document.getElementById('pf-sug-category').value,message=document.getElementById('pf-sug-message').value.trim();if(!message)return;try{await apiPlayer('/player/suggestions','POST',{category,message});document.getElementById('pf-sug-message').value='';toast('Suggestion sent.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+async function playerSubmitComplaint(){const category=document.getElementById('pf-cmp-category').value,message=document.getElementById('pf-cmp-message').value.trim();if(!message)return;if(!confirm('Send this complaint privately to management?'))return;try{await apiPlayer('/player/complaints','POST',{category,message,attachment_url:''});document.getElementById('pf-cmp-message').value='';toast('Complaint sent privately.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+
+// ─── MANAGER ───────────────────────────────────────────────────────────────────
+function refreshManager() {
+  if (!getManagerToken()) return;
+  refreshMgrApps();
+  refreshMgrMatchReports();
+  refreshMgrPoints();
+  refreshMgrShopOrders();
+  refreshMgrSuggestions();
+  refreshMgrComplaints();
+  refreshMgrConversations();
+  refreshMgrRequests();
+  refreshMgrAvailability();
+  refreshMgrRoster();
+  refreshMgrPolls();
+  refreshMgrPermissionRoles();
+  refreshMgrActivityGuilds();
+}
+
+function matchPointEstimate(report) {
+  let total = 3;
+  const text = String(report.result||'').toUpperCase();
+  const score = text.match(/(\d+)\s*[-:]\s*(\d+)/);
+  const win = text.trim().startsWith('W') || (score && Number(score[1]) > Number(score[2]));
+  if (win) total += 5;
+  total += Number(report.goals||0) * 10;
+  total += Number(report.assists||0) * 7;
+  total += Number(report.saves||0) * 2;
+  if (score && Number(score[2]) === 0) total += 10;
+  return total;
+}
+
+async function refreshMgrMatchReports() {
+  const el = document.getElementById('mgr-match-reports');
+  if (!el) return;
+  try {
+    const reports = await apiAuth('/manager/stats?status=pending', 'GET');
+    el.innerHTML = reports.map(r => `
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+          <div><div class="fw-700">${esc(r.player_username||r.discord_tag)} vs ${esc(r.opponent)}</div>
+          <div class="text-sm text-muted">${esc(r.match_id)} · ${esc(r.result)} · Estimated reward: ${matchPointEstimate(r)} pts</div></div>
+          <span class="badge badge-yellow">Pending</span>
+        </div>
+        <div class="grid-3 mt-2">
+          <div class="stat-box"><div class="sv">${r.goals||0}</div><div class="sl">Goals</div></div>
+          <div class="stat-box"><div class="sv">${r.assists||0}</div><div class="sl">Assists</div></div>
+          <div class="stat-box"><div class="sv">${r.saves||0}</div><div class="sl">Saves</div></div>
+        </div>
+        <div class="app-actions mt-2">
+          <button class="btn btn-sm btn-green" onclick="mgrReviewStats('${esc(r.player_discord_id)}','${esc(r.match_id)}','approved')">Approve + Award</button>
+          <button class="btn btn-sm btn-red" onclick="mgrReviewStats('${esc(r.player_discord_id)}','${esc(r.match_id)}','denied')">Deny</button>
+        </div>
+      </div>`).join('') || '<div class="text-muted text-sm">No pending match reports.</div>';
+  } catch(err) { el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`; }
+}
+
+async function mgrReviewStats(discordId, matchId, status) {
+  if (!confirm(`${status === 'approved' ? 'Approve' : 'Deny'} this match report?`)) return;
+  try {
+    const record = await apiAuth(`/stats/${encodeURIComponent(discordId)}/${encodeURIComponent(matchId)}/review`, 'PATCH', {status, reviewed_by:'Manager (Portal)'});
+    toast(status === 'approved' ? `Approved — ${record.points_awarded} points awarded.` : 'Report denied.');
+    refreshMgrMatchReports(); refreshStats(); refreshPoints();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrPoints() {
+  const el = document.getElementById('mgr-points-board');
+  if (!el) return;
+  try {
+    const board = await apiFetch('/points/leaderboard');
+    el.innerHTML = board.slice(0,20).map((entry,index) => `<div class="card" style="margin-bottom:.5rem;display:flex;justify-content:space-between"><span>${index+1}. <strong>${esc(entry.username)}</strong></span><strong>${Number(entry.balance||0).toLocaleString()} pts</strong></div>`).join('') || '<div class="text-muted text-sm">No points yet.</div>';
+  } catch(err) { el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`; }
+}
+
+async function mgrAdjustPoints() {
+  const id = document.getElementById('pm-id').value.trim();
+  const name = document.getElementById('pm-name').value.trim();
+  const action = document.getElementById('pm-action').value;
+  const amount = Number(document.getElementById('pm-amount').value);
+  const reason = document.getElementById('pm-reason').value.trim();
+  if (!/^\d{15,22}$/.test(id) || !name || !Number.isFinite(amount) || amount < 0 || !reason) { toast('Enter a valid ID, username, amount, and reason.', 'error'); return; }
+  try {
+    if (action === 'set') {
+      await apiAuth('/manager/points/set', 'POST', {discord_id:id, username:name, balance:amount, reason, actor:'Manager (Portal)'});
+    } else {
+      await apiAuth('/manager/points/adjust', 'POST', {discord_id:id, username:name, amount:action === 'remove' ? -amount : amount, reason, actor:'Manager (Portal)'});
+    }
+    toast('Points updated.'); refreshMgrPoints(); refreshPoints();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrShopOrders() {
+  const el = document.getElementById('mgr-shop-orders');
+  if (!el) return;
+  try {
+    const orders = await apiAuth('/manager/shop/orders?status=pending', 'GET');
+    el.innerHTML = orders.map(order => `<div class="card" style="margin-bottom:1rem">
+      <div class="fw-700">${esc(order.username)} — ${esc(order.item_name)}</div>
+      <div class="text-sm text-muted">${Number(order.price).toLocaleString()} points · Order ${esc(order.id)}</div>
+      <div class="text-sm mt-1">${esc(order.description)}</div>
+      <div class="app-actions mt-2"><button class="btn btn-sm btn-green" onclick="mgrReviewShop('${esc(order.id)}','fulfilled')">Fulfill</button><button class="btn btn-sm btn-red" onclick="mgrReviewShop('${esc(order.id)}','rejected')">Reject + Refund</button></div>
+    </div>`).join('') || '<div class="text-muted text-sm">No pending shop orders.</div>';
+  } catch(err) { el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`; }
+}
+
+async function mgrReviewShop(id, status) {
+  const note = prompt('Optional manager note:', '') ?? '';
+  try {
+    await apiAuth(`/manager/shop/orders/${encodeURIComponent(id)}`, 'PATCH', {status, reviewed_by:'Manager (Portal)', manager_note:note});
+    toast(status === 'fulfilled' ? 'Order fulfilled.' : 'Order rejected and refunded.'); refreshMgrShopOrders(); refreshPoints();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+function feedbackCard(entry, type) {
+  const statuses = type === 'suggestion' ? ['pending','planned','accepted','declined','implemented'] : ['pending','reviewing','resolved','dismissed'];
+  const options = statuses.map(status => `<option value="${status}" ${entry.status===status?'selected':''}>${status}</option>`).join('');
+  const attachment = entry.attachment_url ? `<div class="text-sm mt-1"><a href="${esc(entry.attachment_url)}" target="_blank" rel="noopener">Open attachment</a></div>` : '';
+  return `<div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><strong>${esc(entry.username)}</strong> · ${esc(entry.category)}</div><span class="badge badge-blue">${esc(entry.id)}</span></div>
+    <div class="text-sm mt-2" style="white-space:pre-wrap">${esc(entry.message)}</div>${attachment}
+    <div class="form-grid mt-2"><div class="form-group"><label>Status</label><select id="${type}-status-${safeid(entry.id)}">${options}</select></div><div class="form-group"><label>Reply to player</label><input id="${type}-reply-${safeid(entry.id)}" value="${esc(entry.reply||'')}"/></div></div>
+    <div class="form-group"><label>Private manager note</label><input id="${type}-note-${safeid(entry.id)}" value="${esc(entry.private_note||'')}"/></div>
+    <button class="btn btn-primary btn-sm" onclick="mgrUpdateFeedback('${type}','${esc(entry.id)}')">Save Update</button>
+  </div>`;
+}
+
+async function refreshMgrSuggestions() {
+  const el = document.getElementById('mgr-suggestions'); if (!el) return;
+  try { const entries = await apiAuth('/manager/suggestions','GET'); el.innerHTML = entries.map(e => feedbackCard(e,'suggestion')).join('') || '<div class="text-muted text-sm">No suggestions yet.</div>'; }
+  catch(err) { el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`; }
+}
+
+async function refreshMgrComplaints() {
+  const el = document.getElementById('mgr-complaints'); if (!el) return;
+  try { const entries = await apiAuth('/manager/complaints','GET'); el.innerHTML = entries.map(e => feedbackCard(e,'complaint')).join('') || '<div class="text-muted text-sm">No complaints yet.</div>'; }
+  catch(err) { el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`; }
+}
+
+async function mgrUpdateFeedback(type, id) {
+  const key = safeid(id);
+  const status = document.getElementById(`${type}-status-${key}`).value;
+  const reply = document.getElementById(`${type}-reply-${key}`).value.trim();
+  const private_note = document.getElementById(`${type}-note-${key}`).value.trim();
+  const path = type === 'suggestion' ? 'suggestions' : 'complaints';
+  try {
+    await apiAuth(`/manager/${path}/${encodeURIComponent(id)}`, 'PATCH', {status, reviewed_by:'Manager (Portal)', reply, private_note});
+    toast(`${type === 'suggestion' ? 'Suggestion' : 'Complaint'} updated.`);
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrPermissionRoles() {
+  const el = document.getElementById('mgr-permissions-list');
+  if (!el) return;
+  try {
+    const roles = await apiAuth('/manager/roles', 'GET');
+    el.innerHTML = roles.map(role => `
+      <div class="card" style="margin-bottom:.75rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div>
+          <div class="fw-700">${esc(role.name)} ${role.built_in ? '<span class="badge badge-blue">Built in</span>' : '<span class="badge badge-green">Added</span>'}</div>
+          <div class="text-sm text-muted">${role.role_id ? `Role ID: ${esc(role.role_id)}` : 'Matches this role name automatically'}</div>
+        </div>
+        ${role.built_in ? '' : `<button class="btn btn-sm btn-red" onclick="mgrRemovePermissionRole('${esc(role.id)}','${esc(role.name)}')">Remove</button>`}
+      </div>`).join('') || '<div class="text-muted text-sm">No manager roles configured.</div>';
+  } catch (err) {
+    el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`;
+  }
+}
+
+async function mgrAddPermissionRole() {
+  const name = document.getElementById('perm-role-name').value.trim();
+  const roleId = document.getElementById('perm-role-id').value.trim();
+  if (!name || !roleId) { toast('Role name and Role ID are required.', 'error'); return; }
+  if (!/^\d{15,22}$/.test(roleId)) { toast('Role ID must be 15–22 numbers.', 'error'); return; }
+  try {
+    await apiAuth('/manager/roles', 'POST', {name, role_id: roleId});
+    document.getElementById('perm-role-name').value = '';
+    document.getElementById('perm-role-id').value = '';
+    toast(`${name} can now use manager-only Discord commands.`);
+    refreshMgrPermissionRoles();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function mgrRemovePermissionRole(id, name) {
+  if (!confirm(`Remove manager access from ${name}?`)) return;
+  try {
+    await apiAuth(`/manager/roles/${id}`, 'DELETE');
+    toast(`${name} no longer has manager access.`);
+    refreshMgrPermissionRoles();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrApps() {
+  const el = document.getElementById('mgr-apps-list');
+  if (!el) return;
+  const status = document.getElementById('mgr-app-status')?.value || 'all';
+  const query = (document.getElementById('mgr-app-search')?.value || '').trim().toLowerCase();
+  try {
+    const path = status === 'all' ? '/manager/tryout-archive' : `/manager/tryout-archive?status=${encodeURIComponent(status)}`;
+    let apps = await apiAuth(path, 'GET');
+    if (query) {
+      apps = apps.filter(a => [a.id, a.username, a.discord_tag, a.position, a.overall, a.availability]
+        .some(value => String(value || '').toLowerCase().includes(query)));
+    }
+    if (!apps.length) {
+      el.innerHTML = '<div class="text-muted text-sm" style="padding:1rem">No saved applications match this view.</div>';
+      return;
+    }
+    const statusClass = {pending:'badge-yellow', accepted:'badge-green', denied:'badge-red', trial:'badge-blue'};
+    el.innerHTML = apps.map(a => {
+      const pendingActions = a.status === 'pending' ? `<div class="app-actions">
+          <button class="btn btn-sm btn-green" onclick="mgrReviewApp('${a.id}','accepted')">✅ Accept</button>
+          <button class="btn btn-sm btn-yellow" onclick="mgrReviewApp('${a.id}','trial')">🔵 Trial</button>
+          <button class="btn btn-sm btn-red" onclick="mgrReviewApp('${a.id}','denied')">❌ Deny</button>
+        </div>` : '';
+      const reviewLine = a.reviewed_at
+        ? `<div class="text-sm text-muted mt-2">Reviewed ${esc(a.reviewed_at.slice(0,10))} by ${esc(a.reviewed_by || 'Manager')}</div>`
+        : '<div class="text-sm text-muted mt-2">Waiting for manager review</div>';
+      return `<div class="app-card">
+        <div class="app-header">
+          <div><span class="fw-700">${esc(a.username)}</span> <span class="badge ${statusClass[a.status]||'badge-yellow'}">${esc(a.status||'pending')}</span>
+            <div class="app-meta">${esc(a.discord_tag||'—')} · ${esc(a.position)} · ${esc(a.overall)} OVR · ${esc(a.availability||'—')}</div>
+          </div>
+          <span class="text-sm text-muted">${esc(a.id)} · ${esc(a.submitted_at?.slice(0,10)||'')}</span>
+        </div>
+        <div class="app-body">
+          <strong>Experience:</strong> ${esc(a.experience||'—')}<br/>
+          <strong>Why PJA?</strong> ${esc(a.reason||'—')}
+          ${reviewLine}
+        </div>
+        ${pendingActions}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error">${esc(e.message || 'Could not load saved applications.')}</div>`;
+  }
+}
+
+async function mgrReviewApp(id, status) {
+  try {
+    await apiAuth(`/tryouts/${id}/review`, 'PATCH', {status, reviewed_by: 'Manager (Portal)'});
+    toast(`Application ${id} → ${status}. Discord DM sent to applicant.`);
+    refreshMgrApps();
+    refreshTryouts();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrRoster() {
+  const body = document.getElementById('mgr-roster-body');
+  try {
+    const players = await apiFetch('/roster');
+    const stsBadge = {Active:'badge-green',Trial:'badge-blue',Injured:'badge-yellow',Inactive:'badge-red',Loaned:'badge-purple'};
+    body.innerHTML = players.map(p => `
+      <tr>
+        <td><div class="player-name">${esc(p.username)}</div><div class="player-discord">${esc(p.discord_tag||'—')}</div></td>
+        <td>${esc(p.position)}</td>
+        <td>${p.overall} OVR</td>
+        <td><span class="badge ${stsBadge[p.status]||'badge-green'}">${p.status}</span></td>
+        <td><button class="btn btn-sm btn-red" onclick="mgrRemovePlayer('${esc(p.discord_id)}','${esc(p.username)}')">Remove</button></td>
+      </tr>`).join('') || '<tr><td colspan="5" class="text-muted text-sm" style="padding:1rem;text-align:center">Roster empty.</td></tr>';
+  } catch(e) { body.innerHTML = '<tr><td colspan="5" class="text-muted text-sm" style="padding:1rem">Offline</td></tr>'; }
+}
+
+async function mgrAddPlayer() {
+  const u = document.getElementById('r-username').value.trim();
+  const d = document.getElementById('r-discord').value.trim();
+  const id = document.getElementById('r-discordid').value.trim();
+  const o = +document.getElementById('r-overall').value;
+  const p = document.getElementById('r-position').value;
+  const s = document.getElementById('r-status').value;
+  if (!u || !id || !o) { toast('Username, Discord ID and Overall are required.', 'error'); return; }
+  try {
+    await apiAuth('/roster', 'POST', {discord_id:id, discord_tag:d||u, username:u, position:p, overall:o, status:s, added_by:'Manager (Portal)'});
+    toast(`${u} added to roster. Discord bot notified.`);
+    refreshMgrRoster(); refreshRoster();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function mgrRemovePlayer(id, name) {
+  if (!confirm(`Remove ${name} from the roster?`)) return;
+  try {
+    await apiAuth(`/roster/${id}`, 'DELETE');
+    toast(`${name} removed.`);
+    refreshMgrRoster(); refreshRoster();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function mgrPostScrim() {
+  const opp = document.getElementById('sc-opp').value.trim();
+  const time = document.getElementById('sc-time').value.trim();
+  const type = document.getElementById('sc-type').value;
+  const notes = document.getElementById('sc-notes').value.trim();
+  if (!opp || !time) { toast('Opponent and time are required.', 'error'); return; }
+  try {
+    await apiAuth('/scrims', 'POST', {opponent:opp, match_type:type, match_time:time, notes, created_by:'Manager (Portal)'});
+    toast(`Scrim vs ${opp} posted. Discord bot will mirror it.`);
+    ['sc-opp','sc-time','sc-notes'].forEach(id => { document.getElementById(id).value=''; });
+    refreshScrims(); refreshHome();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrPolls() {
+  const el = document.getElementById('mgr-polls-list');
+  try {
+    const polls = await apiFetch('/motm?active=true');
+    if (!polls.length) { el.innerHTML = '<div class="text-muted text-sm">No active polls.</div>'; return; }
+    el.innerHTML = polls.map(p => `
+      <div class="card" style="margin-bottom:.75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+        <div><span class="fw-700">${esc(p.id)}</span> · vs ${esc(p.opponent)} · Match ${esc(p.match_id)}
+          <div class="text-sm text-muted">${Object.values(p.votes).reduce((a,b)=>a+b,0)} votes · Nominees: ${p.nominees.map(esc).join(', ')}</div>
+        </div>
+        <button class="btn btn-sm btn-red" onclick="mgrClosePoll('${esc(p.id)}')">End Vote</button>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<div class="text-muted text-sm">Offline</div>'; }
+}
+
+async function mgrStartMOTM() {
+  const matchId = document.getElementById('m-matchid').value.trim();
+  const opp = document.getElementById('m-opp').value.trim();
+  const nomStr = document.getElementById('m-nominees').value.trim();
+  if (!matchId || !opp || !nomStr) { toast('All fields required.', 'error'); return; }
+  const nominees = nomStr.split(',').map(n => n.trim()).filter(Boolean);
+  if (nominees.length < 2) { toast('At least 2 nominees required.', 'error'); return; }
+  try {
+    const poll = await apiAuth('/motm', 'POST', {match_id:matchId, opponent:opp, nominees, started_by:'Manager (Portal)'});
+    toast(`MOTM vote started (ID: ${poll.id}). Discord bot will post the vote message.`);
+    refreshMgrPolls(); refreshMOTM(); refreshHome();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function mgrClosePoll(pollId) {
+  if (!confirm(`End voting for poll ${pollId}?`)) return;
+  try {
+    const poll = await apiAuth(`/motm/${pollId}/close`, 'POST');
+    toast(`MOTM closed — Winner: ${poll.winner||'TBD'}. Discord bot will post results.`);
+    refreshMgrPolls(); refreshMOTM();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function mgrPostAnnouncement() {
+  const title = document.getElementById('an-title').value.trim();
+  const msg = document.getElementById('an-msg').value.trim();
+  const channelId = document.getElementById('an-channel').value.trim();
+  if (!title || !msg || !channelId) { toast('Title, message and channel ID are required.', 'error'); return; }
+  try {
+    await apiAuth('/announcements', 'POST', {
+      title, message:msg, color:document.getElementById('an-color').value,
+      image_url:document.getElementById('an-img').value.trim(),
+      ping:document.getElementById('an-ping').value.trim(),
+      posted_by:'Manager (Portal)', channel_id:channelId,
+      link_label:'', link_url:''
+    });
+    toast('Announcement posted. Discord bot is delivering it now.');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+function previewAnnounce() {
+  const title = document.getElementById('an-title').value || 'Announcement Title';
+  const msg = document.getElementById('an-msg').value || 'Your message appears here...';
+  const color = document.getElementById('an-color').value;
+  const img = document.getElementById('an-img').value;
+  const preview = document.getElementById('announce-preview');
+  preview.style.borderLeftColor = color;
+  preview.innerHTML = `
+    <div style="font-weight:700;margin-bottom:.5rem">📢 ${esc(title)}</div>
+    <div class="text-sm" style="white-space:pre-wrap">${esc(msg)}</div>
+    ${img ? `<img src="${esc(img)}" style="width:100%;border-radius:6px;margin-top:.75rem" onerror="this.style.display='none'"/>` : ''}
+    <div class="text-muted text-sm mt-1" style="font-size:.75rem">Project Azure • VRFS</div>`;
+}
+
+async function refreshMgrConversations(){const el=document.getElementById('mgr-conversations');if(!el||!getManagerToken())return;try{const items=await apiAuth('/manager/conversations','GET');el.innerHTML=items.map(c=>`<div class="card" style="margin-bottom:1rem"><div style="display:flex;justify-content:space-between"><strong>${esc(c.username)} — ${esc(c.subject)}</strong>${statusBadge(c.status)}</div><div class="text-muted text-sm">${esc(c.category)} · ${esc(c.id)}</div><div class="chat-thread mt-1">${(c.messages||[]).map(m=>`<div class="chat-msg ${m.sender_type==='manager'?'manager':'player'}"><strong>${esc(m.sender_name)}</strong><div>${esc(m.message)}</div></div>`).join('')}</div><div class="form-grid mt-1"><div><label class="text-sm">Status</label><select id="mc-status-${safeid(c.id)}"><option value="open" ${c.status==='open'?'selected':''}>Open</option><option value="waiting_for_player" ${c.status==='waiting_for_player'?'selected':''}>Waiting for Player</option><option value="resolved" ${c.status==='resolved'?'selected':''}>Resolved</option><option value="closed" ${c.status==='closed'?'selected':''}>Closed</option></select></div><div><label class="text-sm">Assigned To</label><input id="mc-assign-${safeid(c.id)}" value="${esc(c.assigned_to||'')}"/></div></div><div class="form-group mt-1"><textarea id="mc-reply-${safeid(c.id)}" placeholder="Reply to player (optional)"></textarea></div><button class="btn btn-primary btn-sm" onclick="mgrUpdateConversation('${esc(c.id)}')">Save / Reply</button></div>`).join('')||'<div class="text-muted text-sm">No player conversations.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+async function mgrUpdateConversation(id){const status=document.getElementById('mc-status-'+safeid(id)).value,assigned_to=document.getElementById('mc-assign-'+safeid(id)).value.trim(),reply=document.getElementById('mc-reply-'+safeid(id)).value.trim();try{await apiAuth(`/manager/conversations/${encodeURIComponent(id)}`,'PATCH',{status,assigned_to,reply,manager_name:getManagerUser()||'Manager'});toast('Conversation updated.');refreshMgrConversations();}catch(err){toast(err.message,'error');}}
+async function refreshMgrRequests(){const el=document.getElementById('mgr-requests');if(!el||!getManagerToken())return;try{const items=await apiAuth('/manager/requests','GET');el.innerHTML=items.map(r=>`<div class="card" style="margin-bottom:.75rem"><div style="display:flex;justify-content:space-between"><strong>${esc(r.username)} — ${esc(r.request_type)}</strong>${statusBadge(r.status)}</div><div class="text-sm mt-1">${esc(r.details)}</div><div class="form-grid mt-1"><select id="mr-status-${safeid(r.id)}"><option value="pending" ${r.status==='pending'?'selected':''}>Pending</option><option value="reviewing" ${r.status==='reviewing'?'selected':''}>Reviewing</option><option value="needs_info" ${r.status==='needs_info'?'selected':''}>Needs Info</option><option value="accepted" ${r.status==='accepted'?'selected':''}>Accepted</option><option value="declined" ${r.status==='declined'?'selected':''}>Declined</option><option value="completed" ${r.status==='completed'?'selected':''}>Completed</option></select><input id="mr-reply-${safeid(r.id)}" value="${esc(r.reply||'')}" placeholder="Reply shown to player"/></div><div class="form-group mt-1"><input id="mr-note-${safeid(r.id)}" value="${esc(r.private_note||'')}" placeholder="Private manager note"/></div><button class="btn btn-primary btn-sm" onclick="mgrUpdateRequest('${esc(r.id)}')">Save Request</button></div>`).join('')||'<div class="text-muted text-sm">No player requests.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+async function mgrUpdateRequest(id){const status=document.getElementById('mr-status-'+safeid(id)).value,reply=document.getElementById('mr-reply-'+safeid(id)).value.trim(),private_note=document.getElementById('mr-note-'+safeid(id)).value.trim();try{await apiAuth(`/manager/requests/${encodeURIComponent(id)}`,'PATCH',{status,reviewed_by:getManagerUser()||'Manager',reply,private_note});toast('Request updated.');refreshMgrRequests();}catch(err){toast(err.message,'error');}}
+function mgrAvailList(list){return list.map(x=>`${esc(x.username)}${x.note?' — '+esc(x.note):''}`).join('<br/>')||'—';}
+async function refreshMgrAvailability(){const el=document.getElementById('mgr-availability');if(!el||!getManagerToken())return;try{const matches=await apiAuth('/manager/availability','GET');el.innerHTML=matches.map(s=>`<div class="card" style="margin-bottom:1rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time)} · ${esc(s.id)}</div><div class="grid-3 mt-1"><div><strong>✅ Available</strong><div class="text-sm">${mgrAvailList(s.availability.going||[])}</div></div><div><strong>🟡 Maybe</strong><div class="text-sm">${mgrAvailList(s.availability.maybe||[])}</div></div><div><strong>❌ Unavailable</strong><div class="text-sm">${mgrAvailList(s.availability.cant||[])}</div></div></div><div class="alert alert-info mt-1"><strong>Missing responses:</strong> ${(s.missing||[]).map(p=>esc(p.username)).join(', ')||'None'}</div><div class="form-group"><label>Working Lineup</label><textarea id="ml-lineup-${safeid(s.id)}">${esc(s.lineup||'')}</textarea></div><div class="form-group"><label>Lineup Notes</label><textarea id="ml-notes-${safeid(s.id)}">${esc(s.lineup_notes||'')}</textarea></div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="mgrSaveLineup('${esc(s.id)}')">Save Lineup</button><button class="btn btn-yellow btn-sm" onclick="mgrRemindAvailability('${esc(s.id)}')">Remind Missing Players</button></div></div>`).join('')||'<div class="text-muted text-sm">No matches.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+async function mgrSaveLineup(id){const lineup=document.getElementById('ml-lineup-'+safeid(id)).value,notes=document.getElementById('ml-notes-'+safeid(id)).value;try{await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/lineup`,'PATCH',{lineup,notes,updated_by:getManagerUser()||'Manager'});toast('Lineup saved.');refreshMgrAvailability();}catch(err){toast(err.message,'error');}}
+async function mgrRemindAvailability(id){if(!confirm('DM every roster player who has not responded?'))return;try{const result=await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/remind`,'POST');toast(`Reminder requested for ${result.sent_to} player(s).`);}catch(err){toast(err.message,'error');}}
+
+
+
+// ─── ACTIVITY REVIEW / KICK WAVE ─────────────────────────────────────────────
+let ACTIVITY_GUILDS=[];
+async function refreshMgrActivityGuilds(loadWelcome=false){
+  if(!getManagerToken())return;
+  try{
+    ACTIVITY_GUILDS=await apiAuth('/manager/activity/guilds','GET');
+    for(const id of ['ar-guild','wc-guild']){
+      const el=document.getElementById(id);if(!el)continue;
+      const previous=el.value;
+      el.innerHTML=ACTIVITY_GUILDS.map(g=>`<option value="${esc(g.guild_id)}">${esc(g.guild_name)} (${esc(g.guild_id)})</option>`).join('');
+      if(previous&&ACTIVITY_GUILDS.some(g=>g.guild_id===previous))el.value=previous;
+    }
+    if(loadWelcome)loadWelcomeConfig();
+    else if(ACTIVITY_GUILDS.length)refreshMgrActivity();
+  }catch(err){toast(err.message,'error');}
+}
+function activityDate(value){if(!value)return 'Not tracked';const d=new Date(value);return Number.isNaN(d.getTime())?esc(value):d.toLocaleString();}
+async function refreshMgrActivity(){
+  const guild=document.getElementById('ar-guild')?.value,days=Math.max(7,Number(document.getElementById('ar-days')?.value||30));
+  const list=document.getElementById('mgr-activity-list'),protectedEl=document.getElementById('mgr-activity-protected');
+  if(!guild||!list)return;
+  list.innerHTML='<div class="loading-state"><div class="spinner"></div>Scanning activity...</div>';
+  try{
+    const [items,protectedItems]=await Promise.all([
+      apiAuth(`/manager/activity/candidates?guild_id=${encodeURIComponent(guild)}&inactivity_days=${days}`,'GET'),
+      apiAuth(`/manager/activity/protected?guild_id=${encodeURIComponent(guild)}`,'GET')
+    ]);
+    list.innerHTML=items.map(x=>`<div class="card" style="margin-bottom:.8rem"><div style="display:flex;justify-content:space-between;gap:1rem"><strong>${esc(x.display_name||x.username)}</strong><span class="badge badge-yellow">${x.inactive_days==null?'No activity':x.inactive_days+' days'}</span></div><div class="text-muted text-sm mt-1">Joined: ${activityDate(x.joined_at)}<br/>Last message: ${activityDate(x.last_message_at)}<br/>Last match: ${activityDate(x.last_match_at)}<br/>Last availability: ${activityDate(x.last_availability_at)}<br/>Warnings: ${Number(x.warning_count||0)}</div><div class="app-actions mt-2"><button class="btn btn-sm btn-yellow" onclick="mgrActivityAction('${esc(guild)}','${esc(x.discord_id)}','${esc(x.username)}','warn')">Warn</button><button class="btn btn-sm btn-red" onclick="mgrActivityAction('${esc(guild)}','${esc(x.discord_id)}','${esc(x.username)}','kick')">Kick</button><button class="btn btn-sm btn-green" onclick="mgrActivityAction('${esc(guild)}','${esc(x.discord_id)}','${esc(x.username)}','protect')">Protect</button></div></div>`).join('')||'<div class="alert alert-success">No eligible inactive members found.</div>';
+    protectedEl.innerHTML=protectedItems.map(x=>`<div class="card" style="margin-bottom:.6rem"><strong>${esc(x.username)}</strong><div class="text-muted text-sm">${esc(x.reason||'Protected')}</div><button class="btn btn-sm btn-ghost mt-1" onclick="mgrUnprotect('${esc(guild)}','${esc(x.discord_id)}')">Remove Protection</button></div>`).join('')||'<div class="text-muted text-sm">No protected members.</div>';
+  }catch(err){list.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}
+}
+async function mgrActivityAction(guild,discordId,username,action){
+  if(action==='kick'&&!confirm(`Final check: remove ${username} from the Discord server?`))return;
+  const reason=action==='warn'?'Website inactivity warning':'Website inactivity review';
+  try{
+    if(action==='protect')await apiAuth('/manager/activity/protect','POST',{guild_id:guild,discord_id:discordId,username,action:'protect',manager_name:getManagerUser()||'Manager',reason:'Protected from website activity review'});
+    else await apiAuth('/manager/activity/action','POST',{guild_id:guild,discord_id:discordId,username,action,manager_name:getManagerUser()||'Manager',reason});
+    toast(action==='kick'?'Kick requested. The bot will confirm permissions and perform it.':action==='warn'?'Warning requested.':'Member protected.');
+    setTimeout(refreshMgrActivity,1300);
+  }catch(err){toast(err.message,'error');}
+}
+async function mgrUnprotect(guild,discordId){try{await apiAuth(`/manager/activity/protect/${encodeURIComponent(guild)}/${encodeURIComponent(discordId)}`,'DELETE');toast('Protection removed.');refreshMgrActivity();}catch(err){toast(err.message,'error');}}
+
+// ─── WELCOMER SETUP ─────────────────────────────────────────────────────────
+async function loadWelcomeConfig(){
+  const guild=document.getElementById('wc-guild')?.value;if(!guild)return;
+  try{
+    const c=await apiAuth(`/manager/welcome/${encodeURIComponent(guild)}`,'GET');
+    document.getElementById('wc-enabled').checked=!!c.enabled;document.getElementById('wc-channel').value=c.welcome_channel_id||'';document.getElementById('wc-message').value=c.welcome_message||'';document.getElementById('wc-image').checked=c.image_enabled!==false;document.getElementById('wc-dm-enabled').checked=!!c.dm_enabled;document.getElementById('wc-dm-message').value=c.dm_message||'';document.getElementById('wc-roles').value=(c.auto_role_ids||[]).join(', ');document.getElementById('wc-goodbye-enabled').checked=!!c.goodbye_enabled;document.getElementById('wc-goodbye-channel').value=c.goodbye_channel_id||'';document.getElementById('wc-goodbye-message').value=c.goodbye_message||'';document.getElementById('wc-rules').value=c.rules_url||'';document.getElementById('wc-portal').value=c.portal_url||window.location.origin+'/portal';
+  }catch(err){toast(err.message,'error');}
+}
+function welcomePayload(){return {enabled:document.getElementById('wc-enabled').checked,welcome_channel_id:document.getElementById('wc-channel').value.trim(),welcome_message:document.getElementById('wc-message').value.trim(),image_enabled:document.getElementById('wc-image').checked,dm_enabled:document.getElementById('wc-dm-enabled').checked,dm_message:document.getElementById('wc-dm-message').value.trim(),auto_role_ids:document.getElementById('wc-roles').value.split(',').map(x=>x.trim()).filter(Boolean),goodbye_enabled:document.getElementById('wc-goodbye-enabled').checked,goodbye_channel_id:document.getElementById('wc-goodbye-channel').value.trim(),goodbye_message:document.getElementById('wc-goodbye-message').value.trim(),rules_url:document.getElementById('wc-rules').value.trim(),portal_url:document.getElementById('wc-portal').value.trim()};}
+async function saveWelcomeConfig(){const guild=document.getElementById('wc-guild').value;if(!guild){toast('Choose a server.','error');return;}try{await apiAuth(`/manager/welcome/${encodeURIComponent(guild)}`,'PUT',welcomePayload());toast('Welcomer settings saved.');}catch(err){toast(err.message,'error');}}
+async function testWelcomeConfig(){const guild=document.getElementById('wc-guild').value,user_id=document.getElementById('wc-test-user').value.trim();if(!/^\d{15,22}$/.test(user_id)){toast('Enter a valid Discord User ID.','error');return;}try{await saveWelcomeConfig();await apiAuth(`/manager/welcome/${encodeURIComponent(guild)}/test`,'POST',{user_id});toast('Test welcome requested. Check the configured welcome channel.');}catch(err){toast(err.message,'error');}}
+
+// ─── UTILS ─────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function safeid(s) { return String(s).replace(/[^a-zA-Z0-9]/g,'_'); }
+
+// ─── INIT ──────────────────────────────────────────────────────────────────────
+connectWS();
+refreshHome();
+updateManagerAuthUI();
+updatePlayerAuthUI();
+
+
+// ─── V5 PLAYER PROFILES / SCRIMS / PJA TV / DYNASTY / LINEUPS ─────────────
+let SCRIM_FILTER='all', ALL_SCRIMS=[], LINEUP_MATCHES=[], LINEUP_ROSTER=[], LINEUP_STATE={players:[],tactics:{},notes:'',published:false};
+const TACTIC_FIELDS=[['attacking_style','Attacking Style',['Balanced','Possession','Direct','Fast Build-Up']],['passing_style','Passing',['Mixed','Short','Direct','Long']],['tempo','Tempo',['Slow','Balanced','Fast']],['width','Width',['Narrow','Balanced','Wide']],['pressing','Pressing',['Low Block','Balanced','High Press']],['defensive_line','Defensive Line',['Deep','Balanced','High']],['marking','Marking',['Zonal','Man-to-Man']]];
+const FORMATIONS={
+ '4-3-3':[[8,50],[26,15],[26,38],[26,62],[26,85],[52,25],[48,50],[52,75],[80,18],[87,50],[80,82]],
+ '4-2-3-1':[[8,50],[26,15],[26,38],[26,62],[26,85],[47,38],[47,62],[67,18],[67,50],[67,82],[87,50]],
+ '4-4-2':[[8,50],[26,15],[26,38],[26,62],[26,85],[57,15],[52,38],[52,62],[57,85],[85,37],[85,63]],
+ '3-5-2':[[8,50],[28,25],[25,50],[28,75],[55,8],[50,30],[48,50],[50,70],[55,92],[85,37],[85,63]],
+ '5-3-2':[[8,50],[27,8],[25,28],[23,50],[25,72],[27,92],[55,25],[50,50],[55,75],[85,37],[85,63]]
+};
+
+function formDots(form){return (form||[]).map(x=>`<span class="form-dot ${esc(x)}">${esc(x)}</span>`).join('')||'—';}
+function renderWDL(r){return `<div class="wdl-strip"><div class="wdl-box"><strong>${r.wins||0}</strong>Wins</div><div class="wdl-box"><strong>${r.draws||0}</strong>Draws</div><div class="wdl-box"><strong>${r.losses||0}</strong>Losses</div><div class="wdl-box"><strong>${r.win_percentage||0}%</strong>Win Rate</div><div class="wdl-box"><strong>${r.goals_for||0}:${r.goals_against||0}</strong>Goals</div><div class="wdl-box"><strong>${Number(r.goal_difference||0)>=0?'+':''}${r.goal_difference||0}</strong>Goal Diff</div></div><div class="mt-1">Recent form: ${formDots(r.form)}</div>`;}
+
+async function openPublicProfile(id){showPage('profile');const el=document.getElementById('public-profile-content');el.innerHTML='<div class="loading-state"><div class="spinner"></div>Loading player profile...</div>';try{const d=await apiFetch(`/public/profiles/${encodeURIComponent(id)}`),p=d.player||{},t=d.totals||{},initial=(p.username||'?').slice(0,1).toUpperCase();el.innerHTML=`<div class="profile-hero"><div class="profile-avatar">${esc(initial)}</div><div><div class="text-muted text-sm">PROJECT AZURE PLAYER</div><h1 style="font-family:var(--display);font-size:2.4rem;margin:.2rem 0">${esc(p.emoji||'')} ${esc(p.username||'Player')}</h1><div>${esc(p.position||'Player')} · ${p.overall||'—'} OVR · ${esc(p.status||'Active')}</div>${p.title?`<div class="badge badge-yellow mt-1">${esc(p.title)}</div>`:''}${p.bio?`<p class="text-muted mt-1">${esc(p.bio)}</p>`:''}<div class="mt-1">${formDots(d.recent_form)}</div></div></div><div class="profile-stat-grid mt-2">${[['Matches',t.matches],['Goals',t.goals],['Assists',t.assists],['Saves',t.saves],['Tackles',t.tackles],['Interceptions',t.interceptions],['Clean Sheets',t.clean_sheets],['MOTM',t.motm],['Points',d.points]].map(x=>`<div class="profile-stat"><strong>${Number(x[1]||0).toLocaleString()}</strong>${x[0]}</div>`).join('')}</div><div class="grid-2 mt-2"><div class="card"><div class="fw-700">Recent Matches</div>${(d.recent_matches||[]).map(m=>`<div class="event-item"><strong>vs ${esc(m.opponent)}</strong> ${statusBadge((String(m.result||'').toUpperCase().startsWith('W')?'win':String(m.result||'').toUpperCase().startsWith('L')?'loss':'draw'))}<div class="text-muted text-sm">${esc(m.result)} · G ${m.goals||0} · A ${m.assists||0} · Saves ${m.saves||0} · Tackles ${m.tackles||0}</div></div>`).join('')||'<div class="text-muted text-sm mt-1">No approved matches.</div>'}</div><div><div class="card"><div class="fw-700">Awards &amp; Badges</div>${(d.awards||[]).map(a=>`<div class="event-item">🏅 <strong>${esc(a.title)}</strong><div class="text-muted text-sm">${esc(a.period||'Season')} · ${esc(a.reason||'')}</div></div>`).join('')||'<div class="text-muted text-sm mt-1">No awards yet.</div>'}</div><div class="card mt-1"><div class="fw-700">Unlocked Rewards</div>${(d.inventory||[]).map(i=>`<span class="badge badge-blue" style="margin:.25rem">${esc(i.item_name)}</span>`).join('')||'<div class="text-muted text-sm mt-1">No fulfilled rewards yet.</div>'}</div></div></div>`;}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+
+async function refreshRoster(){const body=document.getElementById('roster-body'),loading=document.getElementById('roster-loading'),empty=document.getElementById('roster-empty');loading?.classList.remove('hidden');body.innerHTML='';try{const players=await apiFetch('/public/roster');loading?.classList.add('hidden');if(!players.length){empty.classList.remove('hidden');return;}empty.classList.add('hidden');const posBadge={Goalkeeper:'badge-blue',Defender:'badge-green',Midfielder:'badge-purple',Striker:'badge-red',Winger:'badge-yellow',Sweeper:'badge-blue'},stsBadge={Active:'badge-green',Trial:'badge-blue',Injured:'badge-yellow',Inactive:'badge-red',Loaned:'badge-purple'};body.innerHTML=players.map(p=>`<tr class="clickable-row" onclick="openPublicProfile('${esc(p.profile_key)}')"><td><div class="ovr">${p.overall}</div></td><td><div class="player-name">${esc(p.emoji||'')} ${esc(p.username)}</div><div class="player-discord">${esc(p.discord_tag||'—')} · Tap for full profile</div></td><td><span class="badge ${posBadge[p.position]||'badge-blue'}">${esc(p.position)}</span></td><td><span class="badge ${stsBadge[p.status]||'badge-green'}">${esc(p.status)}</span></td><td class="text-muted text-sm">${p.joined_at?.slice(0,10)||''}</td></tr>`).join('');}catch(e){loading?.classList.add('hidden');body.innerHTML='<tr><td colspan="5" class="text-muted text-sm" style="padding:1.5rem;text-align:center">Could not load roster.</td></tr>';}}
+
+function setScrimFilter(value,btn){SCRIM_FILTER=value;document.querySelectorAll('#scrim-filter button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderScrimListV5();}
+async function refreshScrims(){const el=document.getElementById('scrims-list');try{const [scrims,wdl]=await Promise.all([apiFetch('/scrims'),apiFetch('/team/wdl')]);ALL_SCRIMS=scrims;document.getElementById('scrims-wdl').innerHTML=`<div class="fw-700" style="margin-bottom:.75rem">Team Record</div>${renderWDL(wdl)}`;renderScrimListV5();}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+function renderScrimListV5(){const el=document.getElementById('scrims-list'),items=ALL_SCRIMS.filter(s=>SCRIM_FILTER==='all'||(s.status||'scheduled')===SCRIM_FILTER);document.getElementById('scrims-empty').classList.toggle('hidden',items.length>0);el.innerHTML=items.map(renderScrimV5).join('');}
+function renderScrimV5(s){const b=s.broadcast||{},lineup=s.lineup_v2||{},status=s.status||'scheduled',going=Object.values(s.going||{}).length,maybe=Object.values(s.maybe||{}).length,cant=Object.values(s.cant||{}).length;return `<div class="broadcast-card" id="scrim-${esc(s.id)}" style="margin-bottom:1rem"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><div class="fw-700" style="font-size:1.15rem">${status==='live'?'📺 LIVE · ':status==='finished'?'🏁 ':status==='cancelled'?'🚫 ':'⚽ '}${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm mt-1">${esc(s.match_time)} · ${esc(s.id)}</div></div><span class="badge ${status==='live'?'badge-red':status==='finished'?'badge-green':status==='cancelled'?'badge-red':'badge-blue'}">${esc(status.toUpperCase())}</span></div>${status==='live'||status==='finished'?`<div class="live-score mt-2">Project Azure ${b.home_score||0} — ${b.away_score||0} ${esc(s.opponent)}</div>`:''}<div class="grid-3 mt-2"><div>✅ ${going} going</div><div>🟡 ${maybe} maybe</div><div>❌ ${cant} unavailable</div></div><div class="mt-1">${lineup.published?'<span class="badge badge-green">Lineup Published</span>':'<span class="badge badge-yellow">Lineup Pending</span>'}</div>${(b.events||[]).length?`<div class="event-timeline mt-2">${b.events.slice(-6).reverse().map(e=>`<div class="event-item">${esc(e.minute?e.minute+'′ ':'')}${esc(e.event_type)} · <strong>${esc(e.player||'Team Update')}</strong>${e.detail?' — '+esc(e.detail):''}</div>`).join('')}</div>`:''}${lineup.published?`<details class="mt-2"><summary class="fw-700">View Starting Lineup &amp; Bench</summary><div class="mt-1"><strong>Starters:</strong> ${lineup.players.filter(p=>p.slot==='starter').map(p=>esc(p.username)).join(', ')||'—'}<br/><strong>Bench:</strong> ${lineup.players.filter(p=>p.slot==='bench').map(p=>esc(p.username)).join(', ')||'—'}</div></details>`:''}</div>`;}
+
+async function refreshTV(){const live=document.getElementById('tv-live'),archive=document.getElementById('tv-archive');try{const rows=await apiFetch('/broadcasts'),liveRows=rows.filter(x=>(x.broadcast||{}).active),past=rows.filter(x=>!(x.broadcast||{}).active);live.innerHTML=liveRows.map(renderTVCard).join('')||'<div class="alert alert-info">No PJA TV broadcast is live right now.</div>';archive.innerHTML=past.map(renderTVCard).join('')||'<div class="text-muted text-sm">No completed broadcasts yet.</div>';}catch(err){live.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+function renderTVCard(s){const b=s.broadcast||{};return `<div class="broadcast-card" style="margin-bottom:1rem"><div class="text-muted text-sm">PJA TV · ${esc((b.phase||'pre_match').replaceAll('_',' ').toUpperCase())}</div><div class="live-score mt-1">Project Azure ${b.home_score||0} — ${b.away_score||0} ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time)} · ${esc(s.match_type)}</div><div class="event-timeline mt-2">${(b.events||[]).slice().reverse().map(e=>`<div class="event-item"><strong>${esc(e.minute?e.minute+'′ ':'')}${esc(e.player||'Team Update')}</strong> · ${esc(e.event_type)}${e.detail?' — '+esc(e.detail):''}</div>`).join('')||'<div class="text-muted text-sm">Waiting for the first event.</div>'}</div>${b.motm?`<div class="alert alert-info mt-1">⭐ MOTM: <strong>${esc(b.motm)}</strong></div>`:''}${b.summary?`<p class="mt-1">${esc(b.summary)}</p>`:''}</div>`;}
+
+async function refreshClub(){const el=document.getElementById('club-content');try{const d=await apiFetch('/team/dynasty'),r=d.records||{},active=d.active_season;el.innerHTML=`${active?`<div class="alert alert-success">Current season: <strong>${esc(active.name)}</strong></div>`:'<div class="alert alert-info">No active season.</div>'}<div class="card mt-2"><div class="fw-700">All-Time Record</div><div class="mt-1">${renderWDL(r.wdl||{})}</div></div><div class="club-records mt-2"><div class="card"><div class="text-muted text-sm">Top Scorer</div><div class="fw-700" style="font-size:1.3rem">${esc(r.top_scorer?.username||'—')}</div><div>${r.top_scorer?.goals||0} goals</div></div><div class="card"><div class="text-muted text-sm">Assist Leader</div><div class="fw-700" style="font-size:1.3rem">${esc(r.top_assist?.username||'—')}</div><div>${r.top_assist?.assists||0} assists</div></div><div class="card"><div class="text-muted text-sm">Most Appearances</div><div class="fw-700" style="font-size:1.3rem">${esc(r.most_appearances?.username||'—')}</div><div>${r.most_appearances?.matches||0} matches</div></div><div class="card"><div class="text-muted text-sm">Longest Win Streak</div><div class="fw-700" style="font-size:1.8rem">${r.longest_win_streak||0}</div></div></div><div class="section-header mt-3"><h2 style="font-size:1.35rem">Trophy Cabinet</h2><div class="divider"></div></div><div class="grid-3">${(d.trophies||[]).map(t=>`<div class="trophy"><div class="trophy-icon">🏆</div><div class="fw-700">${esc(t.name)}</div><div class="text-muted text-sm">${esc(t.season||'Club Honor')}</div><p class="text-sm mt-1">${esc(t.description||'')}</p></div>`).join('')||'<div class="text-muted text-sm">No trophies recorded yet.</div>'}</div><div class="section-header mt-3"><h2 style="font-size:1.35rem">Awards</h2><div class="divider"></div></div>${(d.awards||[]).map(a=>`<div class="card mt-1">🏅 <strong>${esc(a.title)}</strong> — ${esc(a.winner)}<div class="text-muted text-sm">${esc(a.period||'Season')} · ${esc(a.reason||'')}</div></div>`).join('')||'<div class="text-muted text-sm">No awards recorded yet.</div>'}<div class="section-header mt-3"><h2 style="font-size:1.35rem">Season Archive</h2><div class="divider"></div></div>${(d.seasons||[]).map(se=>`<div class="card mt-1"><strong>${esc(se.name)}</strong> ${statusBadge(se.status)}<div class="text-muted text-sm">Started ${esc((se.started_at||'').slice(0,10))}${se.finished_at?' · Finished '+esc(se.finished_at.slice(0,10)):''}</div></div>`).join('')||'<div class="text-muted text-sm">No seasons archived yet.</div>'}`;}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+
+function defaultTactics(){return {formation:'4-3-3',attacking_style:'Balanced',passing_style:'Mixed',tempo:'Balanced',width:'Balanced',pressing:'Balanced',defensive_line:'Balanced',marking:'Zonal',counterattack:false,time_wasting:false,captain_id:'',vice_captain_id:'',penalty_taker_id:'',free_kick_taker_id:'',left_corner_taker_id:'',right_corner_taker_id:''};}
+async function loadLineupBuilder(){try{[LINEUP_MATCHES,LINEUP_ROSTER]=await Promise.all([apiAuth('/manager/availability','GET'),apiFetch('/roster')]);const matchEl=document.getElementById('lb-match'),playerEl=document.getElementById('lb-player');matchEl.innerHTML=LINEUP_MATCHES.map(s=>`<option value="${esc(s.id)}">${esc(s.match_type)} vs ${esc(s.opponent)} · ${esc(s.match_time)}</option>`).join('');playerEl.innerHTML=LINEUP_ROSTER.map(p=>`<option value="${esc(p.discord_id)}">${esc(p.username)} · ${esc(p.position)} · ${p.overall} OVR</option>`).join('');loadSelectedLineup();}catch(err){toast(err.message,'error');}}
+function selectedLineupMatch(){return LINEUP_MATCHES.find(s=>s.id===document.getElementById('lb-match')?.value);}
+function loadSelectedLineup(){const s=selectedLineupMatch();if(!s)return;const existing=s.lineup_v2||{};LINEUP_STATE={players:(existing.players||[]).map(x=>({...x})),tactics:{...defaultTactics(),...(existing.tactics||{})},notes:existing.notes||'',published:!!existing.published};document.getElementById('lb-formation').value=LINEUP_STATE.tactics.formation||'4-3-3';document.getElementById('lb-notes').value=LINEUP_STATE.notes;renderLineupBuilder();}
+function addLineupPlayer(slot){const id=document.getElementById('lb-player').value;if(!id||LINEUP_STATE.players.some(p=>String(p.discord_id)===String(id))){toast('That player is already selected.','error');return;}const p=LINEUP_ROSTER.find(x=>String(x.discord_id)===String(id));if(!p)return;LINEUP_STATE.players.push({discord_id:String(p.discord_id),username:p.username,position:p.position,x:50,y:50,slot,role:''});if(slot==='starter')applyFormation();else renderLineupBuilder();}
+function removeLineupPlayer(id){LINEUP_STATE.players=LINEUP_STATE.players.filter(p=>String(p.discord_id)!==String(id));renderLineupBuilder();}
+function moveLineupSlot(id,slot){const p=LINEUP_STATE.players.find(p=>String(p.discord_id)===String(id));if(p)p.slot=slot;renderLineupBuilder();}
+function applyFormation(){const formation=document.getElementById('lb-formation').value;LINEUP_STATE.tactics.formation=formation;const coords=FORMATIONS[formation];if(coords){LINEUP_STATE.players.filter(p=>p.slot==='starter').slice(0,11).forEach((p,i)=>{if(coords[i]){p.x=coords[i][0];p.y=coords[i][1];}});}renderLineupBuilder();}
+function renderLineupBuilder(){const pitch=document.getElementById('lineup-pitch');if(!pitch)return;pitch.querySelectorAll('.lineup-chip').forEach(x=>x.remove());LINEUP_STATE.players.filter(p=>p.slot==='starter').forEach(p=>{const el=document.createElement('div');el.className='lineup-chip';el.style.left=p.x+'%';el.style.top=p.y+'%';el.innerHTML=`<div class="bubble">${esc((p.username||'P').slice(0,2).toUpperCase())}</div><div class="name">${esc(p.username)}</div>`;el.onpointerdown=e=>startPlayerDrag(e,p,el,pitch);pitch.appendChild(el);});document.getElementById('lb-squad').innerHTML=LINEUP_STATE.players.map(p=>`<div class="lineup-person"><div><strong>${esc(p.username)}</strong><div class="text-muted" style="font-size:.72rem">${esc(p.position)} · ${esc(p.slot)}</div></div><div><select onchange="moveLineupSlot('${esc(p.discord_id)}',this.value)" style="width:auto"><option value="starter" ${p.slot==='starter'?'selected':''}>XI</option><option value="bench" ${p.slot==='bench'?'selected':''}>Bench</option><option value="reserve" ${p.slot==='reserve'?'selected':''}>Reserve</option></select><button class="btn btn-red btn-sm" onclick="removeLineupPlayer('${esc(p.discord_id)}')">×</button></div></div>`).join('')||'<div class="text-muted text-sm">Add players above.</div>';renderTacticsControls();}
+function startPlayerDrag(e,p,el,pitch){e.preventDefault();el.setPointerCapture?.(e.pointerId);const move=ev=>{const r=pitch.getBoundingClientRect();p.x=Math.max(3,Math.min(97,(ev.clientX-r.left)/r.width*100));p.y=Math.max(4,Math.min(96,(ev.clientY-r.top)/r.height*100));el.style.left=p.x+'%';el.style.top=p.y+'%';};const end=()=>{el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',end);};el.addEventListener('pointermove',move);el.addEventListener('pointerup',end);}
+function renderTacticsControls(){const all=LINEUP_STATE.players;document.getElementById('lb-tactics').innerHTML=TACTIC_FIELDS.map(([key,label,opts])=>`<div class="form-group"><label>${label}</label><select onchange="LINEUP_STATE.tactics['${key}']=this.value">${opts.map(o=>`<option ${LINEUP_STATE.tactics[key]===o?'selected':''}>${o}</option>`).join('')}</select></div>`).join('')+`<label><input type="checkbox" ${LINEUP_STATE.tactics.counterattack?'checked':''} onchange="LINEUP_STATE.tactics.counterattack=this.checked"/> Counterattack</label><label><input type="checkbox" ${LINEUP_STATE.tactics.time_wasting?'checked':''} onchange="LINEUP_STATE.tactics.time_wasting=this.checked"/> Time wasting</label>${[['captain_id','Captain'],['vice_captain_id','Vice Captain'],['penalty_taker_id','Penalty'],['free_kick_taker_id','Free Kicks'],['left_corner_taker_id','Left Corners'],['right_corner_taker_id','Right Corners']].map(([key,label])=>`<div class="form-group"><label>${label}</label><select onchange="LINEUP_STATE.tactics['${key}']=this.value"><option value="">—</option>${all.map(p=>`<option value="${esc(p.discord_id)}" ${String(LINEUP_STATE.tactics[key])===String(p.discord_id)?'selected':''}>${esc(p.username)}</option>`).join('')}</select></div>`).join('')}`;}
+async function saveLineup(published){const id=document.getElementById('lb-match').value;if(!id)return;if(published&&LINEUP_STATE.players.filter(p=>p.slot==='starter').length===0){toast('Add starters before publishing.','error');return;}LINEUP_STATE.notes=document.getElementById('lb-notes').value;LINEUP_STATE.tactics.formation=document.getElementById('lb-formation').value;try{await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/lineup-v2`,'PATCH',{players:LINEUP_STATE.players,tactics:LINEUP_STATE.tactics,notes:LINEUP_STATE.notes,published,updated_by:getManagerUser()||'Manager'});toast(published?'Lineup published for /lineup.':'Lineup draft saved.');await loadLineupBuilder();refreshScrims();}catch(err){toast(err.message,'error');}}
+async function unpublishLineup(){const id=document.getElementById('lb-match').value;if(!id||!confirm('Hide this lineup from players?'))return;try{await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/lineup-v2`,'DELETE');toast('Lineup unpublished.');loadLineupBuilder();}catch(err){toast(err.message,'error');}}
+
+async function refreshMgrScrimControl(){const el=document.getElementById('mgr-scrim-control');try{const rows=await apiFetch('/scrims');el.innerHTML=rows.map(s=>`<div class="card" style="margin-bottom:.8rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)} · ${esc(s.id)}</div><div class="form-grid mt-1"><input id="msc-opp-${safeid(s.id)}" value="${esc(s.opponent)}"/><input id="msc-time-${safeid(s.id)}" value="${esc(s.match_time)}"/></div><div class="form-grid mt-1"><select id="msc-type-${safeid(s.id)}"><option value="Friendly" ${String(s.match_type).toLowerCase().includes('friendly')?'selected':''}>Friendly</option><option value="League Match" ${String(s.match_type).toLowerCase().includes('league')?'selected':''}>League Match</option></select><select id="msc-status-${safeid(s.id)}"><option value="scheduled" ${s.status==='scheduled'||!s.status?'selected':''}>Scheduled</option><option value="live" ${s.status==='live'?'selected':''}>Live</option><option value="finished" ${s.status==='finished'?'selected':''}>Finished</option><option value="cancelled" ${s.status==='cancelled'?'selected':''}>Cancelled</option></select></div><textarea id="msc-notes-${safeid(s.id)}" class="mt-1">${esc(s.notes||'')}</textarea><div class="mt-1" style="display:flex;gap:.4rem"><button class="btn btn-primary btn-sm" onclick="mgrEditScrim('${esc(s.id)}')">Save</button><button class="btn btn-yellow btn-sm" onclick="mgrCancelScrim('${esc(s.id)}')">Cancel</button><button class="btn btn-red btn-sm" onclick="mgrDeleteScrim('${esc(s.id)}')">Delete</button></div></div>`).join('')||'<div class="text-muted text-sm">No scrims.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+async function mgrEditScrim(id){try{await apiAuth(`/manager/scrims/${encodeURIComponent(id)}`,'PATCH',{opponent:document.getElementById('msc-opp-'+safeid(id)).value,match_time:document.getElementById('msc-time-'+safeid(id)).value,match_type:document.getElementById('msc-type-'+safeid(id)).value,status:document.getElementById('msc-status-'+safeid(id)).value,notes:document.getElementById('msc-notes-'+safeid(id)).value});toast('Scrim updated.');refreshMgrScrimControl();refreshScrims();}catch(err){toast(err.message,'error');}}
+async function mgrCancelScrim(id){if(!confirm('Mark this scrim as cancelled?'))return;try{await apiAuth(`/manager/scrims/${encodeURIComponent(id)}`,'PATCH',{status:'cancelled'});toast('Scrim cancelled.');refreshMgrScrimControl();refreshScrims();}catch(err){toast(err.message,'error');}}
+async function mgrDeleteScrim(id){if(!confirm('Permanently delete this scrim and all RSVPs?'))return;try{await apiAuth(`/scrims/${encodeURIComponent(id)}`,'DELETE');toast('Scrim deleted.');refreshMgrScrimControl();refreshScrims();}catch(err){toast(err.message,'error');}}
+
+let TV_SCRIMS=[];
+let TV_ROSTER=[];
+const TV_EVENT_LABELS={
+  'pja:goal':{player:'Scorer',second:'Assister (optional)',secondVisible:true},
+  'opponent:goal':{player:'Opponent',second:'',secondVisible:false,playerVisible:false},
+  'pja:assist':{player:'Player who got the assist',second:'',secondVisible:false},
+  'pja:save':{player:'Player who made the save',second:'',secondVisible:false},
+  'pja:yellow':{player:'Player who got the yellow card',second:'',secondVisible:false},
+  'opponent:yellow':{player:'Opponent',second:'',secondVisible:false,playerVisible:false},
+  'pja:red':{player:'Player who got the red card',second:'',secondVisible:false},
+  'opponent:red':{player:'Opponent',second:'',secondVisible:false,playerVisible:false},
+  'pja:substitution':{player:'Player going off',second:'Player coming on',secondVisible:true},
+  'team:note':{player:'',second:'',secondVisible:false,playerVisible:false}
+};
+function tvMatchId(){return document.getElementById('tv-mgr-match')?.value||'';}
+function tvSelectedScrim(){return TV_SCRIMS.find(s=>s.id===tvMatchId())||null;}
+function tvPlayerName(id){return (TV_ROSTER.find(p=>String(p.discord_id)===String(id))||{}).username||'';}
+function tvPlayerOptions(includeBlank=true){return `${includeBlank?'<option value="">— Select player —</option>':''}${TV_ROSTER.map(p=>`<option value="${esc(p.discord_id)}">${esc(p.username)} · ${esc(p.position||'Player')}</option>`).join('')}`;}
+function updateTVScore(scrim){const b=(scrim&&scrim.broadcast)||{};document.getElementById('tv-score-pja').textContent=Number(b.home_score||0);document.getElementById('tv-score-opponent').textContent=Number(b.away_score||0);}
+function onTVMatchChange(){const s=tvSelectedScrim();updateTVScore(s);refreshMgrTVPreview();}
+function onTVEventChange(){
+  const choice=document.getElementById('tv-event-type').value;
+  const cfg=TV_EVENT_LABELS[choice]||{};
+  const playerRow=document.getElementById('tv-player-row');
+  const secondWrap=document.getElementById('tv-second-wrap');
+  const playerVisible=cfg.playerVisible!==false;
+  playerRow.style.display=playerVisible||cfg.secondVisible?'grid':'none';
+  document.getElementById('tv-player').parentElement.style.display=playerVisible?'block':'none';
+  secondWrap.style.display=cfg.secondVisible?'block':'none';
+  document.getElementById('tv-player-label').textContent=cfg.player||'Player';
+  document.getElementById('tv-second-label').textContent=cfg.second||'Second player';
+  document.getElementById('tv-detail-label').textContent=choice==='team:note'?'Match update':'Extra detail (optional)';
+}
+function updateTVLocal(scrim){const i=TV_SCRIMS.findIndex(s=>s.id===scrim.id);if(i>=0)TV_SCRIMS[i]=scrim;else TV_SCRIMS.unshift(scrim);updateTVScore(scrim);}
+async function loadTVManager(){
+  try{
+    const [rows,roster]=await Promise.all([apiFetch('/scrims'),apiFetch('/roster')]);
+    TV_SCRIMS=rows;TV_ROSTER=roster;
+    const active=rows.filter(s=>!['cancelled'].includes(s.status));
+    document.getElementById('tv-mgr-match').innerHTML=active.map(s=>`<option value="${esc(s.id)}">${esc(s.match_type)} vs ${esc(s.opponent)}</option>`).join('');
+    document.getElementById('tv-player').innerHTML=tvPlayerOptions(true);
+    document.getElementById('tv-second').innerHTML=tvPlayerOptions(true);
+    document.getElementById('tv-motm').innerHTML=tvPlayerOptions(true);
+    onTVEventChange();onTVMatchChange();
+  }catch(err){toast(err.message,'error');}
+}
+async function mgrBroadcastStart(){
+  const id=tvMatchId();if(!id){toast('Choose a match first.','error');return;}
+  try{const updated=await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/broadcast/start`,'POST',{started_by:getManagerUser()||'Manager',channel_id:'',message_id:''});updateTVLocal(updated);toast('PJA TV started.');refreshMgrTVPreview();refreshTV();}catch(err){toast(err.message,'error');}
+}
+async function mgrBroadcastEvent(){
+  const id=tvMatchId(),choice=document.getElementById('tv-event-type').value;
+  if(!id){toast('Choose a match first.','error');return;}
+  const [team,event_type]=choice.split(':');
+  const cfg=TV_EVENT_LABELS[choice]||{};
+  const playerId=document.getElementById('tv-player').value;
+  const secondId=document.getElementById('tv-second').value;
+  if(cfg.playerVisible!==false&&!playerId){toast('Choose a player from the roster.','error');return;}
+  if(event_type==='substitution'&&!secondId){toast('Choose the player coming on.','error');return;}
+  const player=team==='opponent'?'Opponent':event_type==='note'?'Match update':tvPlayerName(playerId);
+  const secondary_player=cfg.secondVisible?tvPlayerName(secondId):'';
+  try{
+    const updated=await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/broadcast/event`,'POST',{event_type,team,player,secondary_player,minute:document.getElementById('tv-minute').value.trim(),detail:document.getElementById('tv-detail').value.trim(),actor:getManagerUser()||'Manager'});
+    updateTVLocal(updated);document.getElementById('tv-minute').value='';document.getElementById('tv-detail').value='';document.getElementById('tv-second').value='';toast('Event added and PJA TV updated.');refreshMgrTVPreview();refreshTV();
+  }catch(err){toast(err.message,'error');}
+}
+async function mgrBroadcastUndo(){
+  const id=tvMatchId();if(!id){toast('Choose a match first.','error');return;}
+  if(!confirm('Undo the last PJA TV event?'))return;
+  try{const result=await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/broadcast/event/last`,'DELETE');updateTVLocal(result.scrim);toast('Last event removed.');refreshMgrTVPreview();refreshTV();}catch(err){toast(err.message,'error');}
+}
+async function mgrBroadcastHalftime(){try{const updated=await apiAuth(`/manager/scrims/${encodeURIComponent(tvMatchId())}/broadcast/halftime`,'POST');updateTVLocal(updated);toast('Half-time set.');refreshMgrTVPreview();}catch(err){toast(err.message,'error');}}
+async function mgrBroadcastFinish(){
+  const s=tvSelectedScrim();if(!s){toast('Choose a match first.','error');return;}
+  const b=s.broadcast||{};
+  try{const updated=await apiAuth(`/manager/scrims/${encodeURIComponent(s.id)}/broadcast/finish`,'POST',{home_score:Number(b.home_score||0),away_score:Number(b.away_score||0),motm:tvPlayerName(document.getElementById('tv-motm').value),summary:document.getElementById('tv-summary').value.trim(),finished_by:getManagerUser()||'Manager'});updateTVLocal(updated);toast('Full-time published.');refreshMgrTVPreview();refreshTV();refreshClub();}catch(err){toast(err.message,'error');}
+}
+async function refreshMgrTVPreview(){const el=document.getElementById('mgr-tv-preview');if(!el)return;try{const rows=await apiFetch('/scrims');TV_SCRIMS=rows;const s=rows.find(x=>x.id===tvMatchId())||rows[0];if(s)updateTVScore(s);el.innerHTML=s?renderTVCard(s):'<div class="text-muted text-sm">No match selected.</div>';}catch(err){el.innerHTML='';}}
+
+async function refreshMgrDynasty(){const el=document.getElementById('mgr-dynasty-preview');if(!el)return;try{const d=await apiFetch('/team/dynasty');el.innerHTML=`<div class="card"><strong>Active Season:</strong> ${esc(d.active_season?.name||'None')}<br/><strong>Trophies:</strong> ${(d.trophies||[]).length} · <strong>Awards:</strong> ${(d.awards||[]).length}</div>`;}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+async function mgrStartSeason(){const name=document.getElementById('dyn-season-name').value.trim();if(!name)return;try{await apiAuth('/manager/seasons/start','POST',{name,started_by:getManagerUser()||'Manager'});toast('Season started.');refreshMgrDynasty();refreshClub();}catch(err){toast(err.message,'error');}}
+async function mgrFinishSeason(){try{const d=await apiFetch('/team/dynasty');if(!d.active_season){toast('No active season.','error');return;}await apiAuth(`/manager/seasons/${encodeURIComponent(d.active_season.id)}/finish`,'POST',{finished_by:getManagerUser()||'Manager',notes:''});toast('Season archived.');refreshMgrDynasty();refreshClub();}catch(err){toast(err.message,'error');}}
+async function mgrAddTrophy(){try{await apiAuth('/manager/trophies','POST',{name:document.getElementById('dyn-trophy-name').value,season:document.getElementById('dyn-trophy-season').value,description:document.getElementById('dyn-trophy-description').value,added_by:getManagerUser()||'Manager'});toast('Trophy added.');refreshMgrDynasty();refreshClub();}catch(err){toast(err.message,'error');}}
+async function mgrAddAward(){try{await apiAuth('/manager/awards','POST',{title:document.getElementById('dyn-award-title').value,winner:document.getElementById('dyn-award-winner').value,discord_id:document.getElementById('dyn-award-id').value,period:document.getElementById('dyn-award-period').value||'Season',reason:document.getElementById('dyn-award-reason').value,awarded_by:getManagerUser()||'Manager'});toast('Award added.');refreshMgrDynasty();refreshClub();}catch(err){toast(err.message,'error');}}
+
+// Replace the old text-area lineup manager with availability-only cards.
+async function refreshMgrAvailability(){const el=document.getElementById('mgr-availability');if(!el||!getManagerToken())return;try{const matches=await apiAuth('/manager/availability','GET');el.innerHTML=matches.map(s=>`<div class="card" style="margin-bottom:1rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time)} · ${esc(s.id)}</div><div class="grid-3 mt-1"><div><strong>✅ Available</strong><div class="text-sm">${mgrAvailList(s.availability.going||[])}</div></div><div><strong>🟡 Maybe</strong><div class="text-sm">${mgrAvailList(s.availability.maybe||[])}</div></div><div><strong>❌ Unavailable</strong><div class="text-sm">${mgrAvailList(s.availability.cant||[])}</div></div></div><div class="alert alert-info mt-1"><strong>Missing responses:</strong> ${(s.missing||[]).map(p=>esc(p.username)).join(', ')||'None'}</div><button class="btn btn-yellow btn-sm" onclick="mgrRemindAvailability('${esc(s.id)}')">Remind Missing Players</button></div>`).join('')||'<div class="text-muted text-sm">No matches.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+
+
+// Preserve public RSVP controls in the V5 Scrims page.
+function renderScrimV5(s){
+  const b=s.broadcast||{}, lineup=s.lineup_v2||{}, status=s.status||'scheduled';
+  const goingNames=Object.values(s.going||{}), maybeNames=Object.values(s.maybe||{}), cantNames=Object.values(s.cant||{});
+  const canRSVP=['scheduled','live'].includes(status);
+  const rsvpDetails=`<details class="mt-2"><summary class="fw-700">RSVP list</summary><div class="grid-3 mt-1"><div><strong>✅ Going</strong><div class="text-sm">${goingNames.map(esc).join('<br/>')||'—'}</div></div><div><strong>🟡 Maybe</strong><div class="text-sm">${maybeNames.map(esc).join('<br/>')||'—'}</div></div><div><strong>❌ Unavailable</strong><div class="text-sm">${cantNames.map(esc).join('<br/>')||'—'}</div></div></div></details>`;
+  const rsvpButtons=canRSVP?`<div class="rsvp-actions mt-2"><button class="btn btn-sm btn-green" onclick="scrimRSVP('${esc(s.id)}','going')">I'm Going</button><button class="btn btn-sm btn-yellow" onclick="scrimRSVP('${esc(s.id)}','maybe')">Maybe</button><button class="btn btn-sm btn-red" onclick="scrimRSVP('${esc(s.id)}','cant')">Can't Go</button></div>`:'';
+  return `<div class="broadcast-card" id="scrim-${esc(s.id)}" style="margin-bottom:1rem"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><div class="fw-700" style="font-size:1.15rem">${status==='live'?'📺 LIVE · ':status==='finished'?'🏁 ':status==='cancelled'?'🚫 ':'⚽ '}${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm mt-1">${esc(s.match_time)} · ${esc(s.id)}</div></div><span class="badge ${status==='live'?'badge-red':status==='finished'?'badge-green':status==='cancelled'?'badge-red':'badge-blue'}">${esc(status.toUpperCase())}</span></div>${status==='live'||status==='finished'?`<div class="live-score mt-2">Project Azure ${b.home_score||0} — ${b.away_score||0} ${esc(s.opponent)}</div>`:''}<div class="grid-3 mt-2"><div>✅ ${goingNames.length} going</div><div>🟡 ${maybeNames.length} maybe</div><div>❌ ${cantNames.length} unavailable</div></div><div class="mt-1">${lineup.published?'<span class="badge badge-green">Lineup Published</span>':'<span class="badge badge-yellow">Lineup Pending</span>'}</div>${(b.events||[]).length?`<div class="event-timeline mt-2">${b.events.slice(-6).reverse().map(e=>`<div class="event-item">${esc(e.minute?e.minute+'′ ':'')}${esc(e.event_type)} · <strong>${esc(e.player||'Team Update')}</strong>${e.detail?' — '+esc(e.detail):''}</div>`).join('')}</div>`:''}${lineup.published?`<details class="mt-2"><summary class="fw-700">View Starting Lineup &amp; Bench</summary><div class="mt-1"><strong>Starters:</strong> ${lineup.players.filter(p=>p.slot==='starter').map(p=>esc(p.username)).join(', ')||'—'}<br/><strong>Bench:</strong> ${lineup.players.filter(p=>p.slot==='bench').map(p=>esc(p.username)).join(', ')||'—'}</div></details>`:''}${rsvpDetails}${rsvpButtons}</div>`;
+}
+
+async function scrimRSVP(scrimId,status){
+  const username=prompt('Enter your VRFS username:');
+  if(!username?.trim())return;
+  const discordId=`web_${username.trim().replace(/\s+/g,'_')}`;
+  try{
+    const scrim=await apiFetch(`/scrims/${encodeURIComponent(scrimId)}/rsvp`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({discord_id:discordId,username:username.trim(),status})});
+    SESSION_RSVP[scrimId]=status;
+    const index=ALL_SCRIMS.findIndex(x=>x.id===scrim.id);
+    if(index>=0)ALL_SCRIMS[index]=scrim;else ALL_SCRIMS.push(scrim);
+    toast({going:"You're going ✅",maybe:'Marked as maybe 🟡',cant:"Can't go ❌"}[status]);
+    renderScrimListV5();
+  }catch(err){toast(err.message,'error');}
+}
+
+function onWSScrimRSVP(s){
+  const index=ALL_SCRIMS.findIndex(x=>x.id===s.id);
+  if(index>=0)ALL_SCRIMS[index]=s;else ALL_SCRIMS.push(s);
+  if(document.getElementById('page-scrims')?.classList.contains('active'))renderScrimListV5();
+}
+
+// Extend page/tab routing and live refresh.
+const _showPageV4=showPage;showPage=function(id){_showPageV4(id);if(id==='tv')refreshTV();if(id==='club')refreshClub();};
+const _openTabV4=openTab;openTab=function(id,btn){_openTabV4(id,btn);if(id==='tab-lineup-builder')loadLineupBuilder();if(id==='tab-scrim-control')refreshMgrScrimControl();if(id==='tab-tv-manager')loadTVManager();if(id==='tab-dynasty')refreshMgrDynasty();};
+const _handleWSV4=handleWS;handleWS=function(payload){_handleWSV4(payload);if(['scrim_updated','lineup_updated','broadcast_updated','broadcast_finished'].includes(payload.event)){refreshScrims();if(document.getElementById('page-tv')?.classList.contains('active'))refreshTV();if(getManagerToken()){refreshMgrScrimControl();refreshMgrTVPreview();}}if(['season_updated','dynasty_updated'].includes(payload.event)){refreshClub();if(getManagerToken())refreshMgrDynasty();}};
+
+window.addEventListener('load',()=>{const q=new URLSearchParams(location.search),page=q.get('page'),player=q.get('player');if(page==='profile'&&player){showPage('profile');openPublicProfile(player);}else if(page&&document.getElementById('page-'+page))showPage(page);});
+
+</script>
+</body>
+</html>
