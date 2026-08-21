@@ -492,6 +492,8 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
     <div class="tabs">
       <button class="tab-btn active" onclick="openTab('tab-action-center',this)">⚡ Action Center</button>
       <button class="tab-btn" onclick="openTab('tab-apps',this)">Applications</button>
+      <button class="tab-btn" onclick="openTab('tab-trial-roster',this)">Accepted Tryouts</button>
+      <button class="tab-btn" onclick="openTab('tab-automod',this)">AutoMod</button>
       <button class="tab-btn" onclick="openTab('tab-match-reports',this)">Match Reports</button>
       <button class="tab-btn" onclick="openTab('tab-points-mgr',this)">Points</button>
       <button class="tab-btn" onclick="openTab('tab-shop-orders',this)">Shop Orders</button>
@@ -528,6 +530,23 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
         </div>
       </div>
       <div id="mgr-apps-list"><div class="loading-state"><div class="spinner"></div>Loading...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-trial-roster">
+      <div class="alert alert-info">Staff-only roster for accepted tryouts. Accepting an application puts the player here first — it does not automatically place them on the public/main roster.</div>
+      <div id="mgr-trial-roster" class="mt-2"><div class="loading-state"><div class="spinner"></div>Loading accepted tryouts...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-automod">
+      <div class="alert alert-info">Discord invite link filter. Staff are exempt. When links are disabled, the bot deletes invite links and warns the sender. No bans, kicks, strikes, or point penalties are added.</div>
+      <div class="card mt-2">
+        <div class="form-group"><label>Discord Server</label><select id="am-guild" onchange="loadAutoModConfig()"></select></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;padding:1rem;background:var(--surface2);border:1px solid var(--border);border-radius:12px">
+          <div><div class="fw-700">Discord Invite Links</div><div class="text-muted text-sm" id="am-state-text">Loading...</div></div>
+          <label style="display:flex;align-items:center;gap:.55rem;font-weight:700"><input id="am-discord-links" type="checkbox" style="width:22px;height:22px"/> Allow invite links</label>
+        </div>
+        <button class="btn btn-primary mt-2" onclick="saveAutoModConfig()">Save AutoMod</button>
+      </div>
     </div>
 
     <div class="tab-panel" id="tab-match-reports">
@@ -816,6 +835,8 @@ function handleWS(payload) {
   switch(event) {
     case 'tryout_created':   onWSTryoutCreated(data); break;
     case 'tryout_reviewed':  onWSTryoutReviewed(data); break;
+    case 'trial_roster_updated': if (getManagerToken()) refreshMgrTrialRoster(); break;
+    case 'automod_updated': if (getManagerToken()) loadAutoModConfig(); break;
     case 'player_added':
     case 'player_updated':
     case 'player_removed':   refreshRoster(); refreshMgrRoster(); refreshHome(); break;
@@ -976,6 +997,8 @@ function openTab(id, btn) {
   btn.classList.add('active');
   if (id === 'tab-action-center') refreshMgrActionCenter();
   if (id === 'tab-apps') refreshMgrApps();
+  if (id === 'tab-trial-roster') refreshMgrTrialRoster();
+  if (id === 'tab-automod') refreshMgrAutoMod();
   if (id === 'tab-match-reports') refreshMgrMatchReports();
   if (id === 'tab-points-mgr') refreshMgrPoints();
   if (id === 'tab-shop-orders') refreshMgrShopOrders();
@@ -1599,6 +1622,82 @@ async function mgrReviewApp(id, status) {
     refreshMgrApps();
     refreshTryouts();
   } catch(err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrTrialRoster() {
+  const el = document.getElementById('mgr-trial-roster');
+  if (!el || !getManagerToken()) return;
+  try {
+    const players = await apiAuth('/manager/trial-roster', 'GET');
+    if (!players.length) {
+      el.innerHTML = '<div class="card"><div class="fw-700">No accepted tryouts waiting</div><div class="text-muted text-sm mt-1">When staff accepts a tryout application, the player will appear here first.</div></div>';
+      return;
+    }
+    el.innerHTML = players.map(p => `<div class="app-card">
+      <div class="app-header"><div><span class="fw-700">${esc(p.username)}</span> <span class="badge badge-blue">Accepted Tryout</span><div class="app-meta">${esc(p.discord_tag||'—')} · ${esc(p.position||'—')} · ${esc(p.overall||'—')} OVR · ${esc(p.availability||'—')}</div></div><span class="text-sm text-muted">${esc(p.application_id||'')} · ${esc((p.accepted_at||'').slice(0,10))}</span></div>
+      <div class="app-body"><strong>Experience:</strong> ${esc(p.experience||'—')}<br/><strong>Why PJA?</strong> ${esc(p.reason||'—')}<div class="text-sm text-muted mt-2">Accepted by ${esc(p.accepted_by||'Manager')}</div></div>
+      <div class="app-actions"><button class="btn btn-sm btn-green" onclick="mgrPromoteTrial('${esc(p.discord_id)}','${esc(p.username)}')">Add to Main Roster</button><button class="btn btn-sm btn-red" onclick="mgrRemoveTrial('${esc(p.discord_id)}','${esc(p.username)}')">Remove</button></div>
+    </div>`).join('');
+  } catch(err) { el.innerHTML = `<div class="alert alert-error">${esc(err.message)}</div>`; }
+}
+
+async function mgrPromoteTrial(id, name) {
+  if (!confirm(`Add ${name} to the MAIN roster?`)) return;
+  try {
+    await apiAuth(`/manager/trial-roster/${encodeURIComponent(id)}/promote`, 'POST', {added_by:getManagerUser()||'Manager'});
+    toast(`${name} moved to the main roster.`);
+    refreshMgrTrialRoster(); refreshMgrRoster(); refreshRoster(); refreshHome();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function mgrRemoveTrial(id, name) {
+  if (!confirm(`Remove ${name} from the accepted-tryout roster? Their saved application will stay archived.`)) return;
+  try {
+    await apiAuth(`/manager/trial-roster/${encodeURIComponent(id)}`, 'DELETE');
+    toast(`${name} removed from the accepted-tryout roster.`);
+    refreshMgrTrialRoster();
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function refreshMgrAutoMod() {
+  const select = document.getElementById('am-guild');
+  if (!select || !getManagerToken()) return;
+  try {
+    const guilds = await apiAuth('/manager/activity/guilds','GET');
+    const previous = select.value;
+    select.innerHTML = guilds.map(g => `<option value="${esc(g.guild_id)}">${esc(g.guild_name)}</option>`).join('');
+    if (previous && guilds.some(g => String(g.guild_id) === String(previous))) select.value = previous;
+    if (!guilds.length) {
+      document.getElementById('am-state-text').textContent = 'No Discord server synced yet. Wait for the bot to come online.';
+      document.getElementById('am-discord-links').checked = true;
+      return;
+    }
+    await loadAutoModConfig();
+  } catch(err) { toast(err.message,'error'); }
+}
+
+async function loadAutoModConfig() {
+  const guild = document.getElementById('am-guild')?.value;
+  if (!guild || !getManagerToken()) return;
+  try {
+    const cfg = await apiAuth(`/manager/automod/${encodeURIComponent(guild)}`,'GET');
+    const enabled = Boolean(cfg.discord_links_enabled);
+    document.getElementById('am-discord-links').checked = enabled;
+    document.getElementById('am-state-text').innerHTML = enabled
+      ? '<span class="badge badge-green">ENABLED</span> Players may post Discord invite links.'
+      : '<span class="badge badge-red">DISABLED</span> Invite links are automatically deleted and the sender is warned.';
+  } catch(err) { toast(err.message,'error'); }
+}
+
+async function saveAutoModConfig() {
+  const guild = document.getElementById('am-guild')?.value;
+  if (!guild) { toast('Choose a Discord server.','error'); return; }
+  const enabled = document.getElementById('am-discord-links').checked;
+  try {
+    await apiAuth(`/manager/automod/${encodeURIComponent(guild)}`,'PUT',{discord_links_enabled:enabled,updated_by:getManagerUser()||'Manager'});
+    toast(enabled ? 'Discord invite links enabled.' : 'Discord invite links disabled — AutoMod will delete and warn.');
+    loadAutoModConfig();
+  } catch(err) { toast(err.message,'error'); }
 }
 
 async function refreshMgrRoster() {

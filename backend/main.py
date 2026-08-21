@@ -47,7 +47,7 @@ if missing_config:
         "Missing required environment variables: " + ", ".join(missing_config)
     )
 
-app = FastAPI(title="Project Azure API", version="6.0.0", docs_url="/docs")
+app = FastAPI(title="Project Azure API", version="6.1.0", docs_url="/docs")
 
 app.add_middleware(
     CORSMiddleware,
@@ -357,6 +357,13 @@ class PlayerUpdate(BaseModel):
     overall: Optional[int] = None
     status: Optional[str] = None
     position: Optional[str] = None
+
+class TrialRosterPromote(BaseModel):
+    added_by: str = Field(default="Manager", min_length=1, max_length=100)
+
+class AutoModSettingsUpdate(BaseModel):
+    discord_links_enabled: bool = True
+    updated_by: str = Field(default="Manager", min_length=1, max_length=100)
 
 class StatsCreate(BaseModel):
     discord_id: str = Field(pattern=r"^\d{15,22}$")
@@ -832,7 +839,7 @@ def manager_role_list() -> list:
 # ─── HEALTH ──────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
-    return {"status": "online", "project": "Azure API", "version": "6.0.0"}
+    return {"status": "online", "project": "Azure API", "version": "6.1.0"}
 
 @app.get("/health")
 def health():
@@ -983,8 +990,93 @@ async def review_tryout(app_id: str, data: TryoutReview, source: str = Depends(r
     db[app_id]["source"] = source
     save("tryouts", db)
     archive_tryout_snapshot(db[app_id], "reviewed", data.reviewed_by)
+
+    # V6.1: accepting a tryout does NOT put the player directly onto the
+    # public/main roster. It creates a staff-only accepted-tryout roster
+    # entry so management can promote or remove the player deliberately.
+    trial_roster = load("trial_roster")
+    discord_id = str(db[app_id]["discord_id"])
+    if data.status == "accepted":
+        if discord_id not in load("roster"):
+            app_data = db[app_id]
+            trial_roster[discord_id] = {
+                "discord_id": discord_id,
+                "discord_tag": app_data.get("discord_tag", ""),
+                "username": app_data.get("username", ""),
+                "position": app_data.get("position", ""),
+                "overall": app_data.get("overall", ""),
+                "availability": app_data.get("availability", ""),
+                "experience": app_data.get("experience", ""),
+                "reason": app_data.get("reason", ""),
+                "application_id": app_id,
+                "accepted_at": now(),
+                "accepted_by": data.reviewed_by,
+                "source": source,
+            }
+            save("trial_roster", trial_roster)
+            await manager.broadcast("trial_roster_updated", {"action": "added", **trial_roster[discord_id]})
+    else:
+        existing = trial_roster.get(discord_id)
+        if existing and existing.get("application_id") == app_id:
+            removed = trial_roster.pop(discord_id)
+            save("trial_roster", trial_roster)
+            await manager.broadcast("trial_roster_updated", {"action": "removed", "discord_id": discord_id, "player": removed, "source": source})
+
     await manager.broadcast("tryout_reviewed", public_tryout(db[app_id]))
     return db[app_id]
+
+# ─── ACCEPTED TRYOUT / TRIAL ROSTER (STAFF ONLY) ─────────────────────────────
+@app.get("/manager/trial-roster")
+def get_trial_roster(source: str = Depends(require_client)):
+    players = list(load("trial_roster").values())
+    return sorted(players, key=lambda p: p.get("accepted_at", ""), reverse=True)
+
+
+def _tryout_overall_number(value) -> int:
+    match = re.search(r"\d{1,3}", str(value or ""))
+    if not match:
+        return 70
+    return max(1, min(int(match.group(0)), 99))
+
+
+@app.post("/manager/trial-roster/{discord_id}/promote")
+async def promote_trial_player(discord_id: str, data: TrialRosterPromote, source: str = Depends(require_client)):
+    trial_roster = load("trial_roster")
+    if discord_id not in trial_roster:
+        raise HTTPException(404, "Accepted tryout player not found")
+    roster = load("roster")
+    if discord_id in roster:
+        raise HTTPException(409, "Player is already on the main roster")
+    trial = trial_roster[discord_id]
+    roster[discord_id] = {
+        "discord_id": discord_id,
+        "discord_tag": trial.get("discord_tag") or trial.get("username", "Player"),
+        "username": trial.get("username", "Player"),
+        "position": trial.get("position", "Player"),
+        "overall": _tryout_overall_number(trial.get("overall")),
+        "status": "Active",
+        "added_by": data.added_by,
+        "joined_at": now(),
+        "source": source,
+        "tryout_application_id": trial.get("application_id", ""),
+    }
+    save("roster", roster)
+    removed = trial_roster.pop(discord_id)
+    save("trial_roster", trial_roster)
+    await manager.broadcast("player_added", roster[discord_id])
+    await manager.broadcast("trial_roster_updated", {"action": "promoted", "discord_id": discord_id, "player": removed, "roster_player": roster[discord_id], "source": source})
+    return {"promoted": True, "player": roster[discord_id]}
+
+
+@app.delete("/manager/trial-roster/{discord_id}")
+async def remove_trial_player(discord_id: str, source: str = Depends(require_client)):
+    trial_roster = load("trial_roster")
+    if discord_id not in trial_roster:
+        raise HTTPException(404, "Accepted tryout player not found")
+    player = trial_roster.pop(discord_id)
+    save("trial_roster", trial_roster)
+    await manager.broadcast("trial_roster_updated", {"action": "removed", "discord_id": discord_id, "player": player, "source": source})
+    return {"removed": True, "player": player}
 
 # ─── ROSTER ──────────────────────────────────────────────────────────────────
 @app.get("/roster")
@@ -1040,6 +1132,34 @@ async def remove_player(discord_id: str, source: str = Depends(require_client)):
     save("roster", db)
     await manager.broadcast("player_removed", {"discord_id": discord_id, "player": player, "source": source})
     return {"removed": True, "player": player}
+
+# ─── AUTOMOD SETTINGS (STAFF ONLY) ───────────────────────────────────────────
+@app.get("/manager/automod/{guild_id}")
+def get_automod_settings(guild_id: str, source: str = Depends(require_client)):
+    db = load("automod_settings")
+    saved = db.get(str(guild_id), {})
+    return {
+        "guild_id": str(guild_id),
+        "discord_links_enabled": bool(saved.get("discord_links_enabled", True)),
+        "updated_by": saved.get("updated_by", ""),
+        "updated_at": saved.get("updated_at", ""),
+    }
+
+
+@app.put("/manager/automod/{guild_id}")
+async def update_automod_settings(guild_id: str, data: AutoModSettingsUpdate, source: str = Depends(require_client)):
+    db = load("automod_settings")
+    entry = {
+        "guild_id": str(guild_id),
+        "discord_links_enabled": bool(data.discord_links_enabled),
+        "updated_by": data.updated_by,
+        "updated_at": now(),
+        "source": source,
+    }
+    db[str(guild_id)] = entry
+    save("automod_settings", db)
+    await manager.broadcast("automod_updated", entry)
+    return entry
 
 # ─── STATS + AUTOMATIC POINTS ────────────────────────────────────────────────
 @app.get("/stats")

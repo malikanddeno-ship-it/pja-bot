@@ -32,6 +32,7 @@ COGS = [
     "cogs.portal",
     "cogs.activity",
     "cogs.welcome",
+    "cogs.automod",
     "cogs.lineups",
     "cogs.broadcast",
     "cogs.club",
@@ -247,6 +248,10 @@ async def handle_ws_event(payload: dict):
         await on_website_tryout(data)
     elif event == "tryout_reviewed":
         await on_website_tryout_review(data)
+    elif event == "automod_updated":
+        cog = bot.get_cog("AutoModCog")
+        if cog:
+            cog.set_config(data)
     elif event == "motm_started":
         await on_website_motm_started(data)
     elif event == "motm_closed":

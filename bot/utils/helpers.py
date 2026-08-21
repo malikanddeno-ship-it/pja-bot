@@ -162,6 +162,26 @@ class APIClient:
     async def remove_player(self, discord_id: str) -> dict:
         return await self._request("DELETE", f"/roster/{discord_id}", auth=True)
 
+    # ── Accepted tryout roster ──────────────────────────────────────────────
+    async def get_trial_roster(self) -> list:
+        return await self._request("GET", "/manager/trial-roster", auth=True)
+
+    async def promote_trial_player(self, discord_id: str, added_by: str = "Manager") -> dict:
+        return await self._request("POST", f"/manager/trial-roster/{discord_id}/promote", auth=True, json={"added_by": added_by})
+
+    async def remove_trial_player(self, discord_id: str) -> dict:
+        return await self._request("DELETE", f"/manager/trial-roster/{discord_id}", auth=True)
+
+    # ── AutoMod ─────────────────────────────────────────────────────────────
+    async def get_automod_settings(self, guild_id: str) -> dict:
+        return await self._request("GET", f"/manager/automod/{guild_id}", auth=True)
+
+    async def update_automod_settings(self, guild_id: str, discord_links_enabled: bool, updated_by: str = "Manager") -> dict:
+        return await self._request(
+            "PUT", f"/manager/automod/{guild_id}", auth=True,
+            json={"discord_links_enabled": bool(discord_links_enabled), "updated_by": updated_by},
+        )
+
     # ── Stats ────────────────────────────────────────────────────────────────
     async def submit_stats(self, **data) -> dict:
         return await self._request("POST", "/stats", auth=True, json=data)
