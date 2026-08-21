@@ -89,11 +89,18 @@ class StatsCog(commands.Cog):
 
     stats_group = app_commands.Group(name="stats", description="Match stats commands")
 
-    @stats_group.command(name="submit", description="Submit your stats for a match")
-    @app_commands.describe(opponent="Team you played against", result="Match result (e.g. W 3-1)", match_id="Unique match ID (e.g. M001)")
-    async def submit(self, interaction: discord.Interaction, opponent: str, result: str, match_id: str):
-        modal = StatsModal(match_id=match_id, opponent=opponent, result=result)
-        await interaction.response.send_modal(modal)
+    @stats_group.command(name="submit", description="Submit match stats in the Player Portal")
+    async def submit(self, interaction: discord.Interaction):
+        embed = pja_embed(
+            "Match Stats — Player Portal",
+            "V6 loads your finished matches automatically. Submit your goals, assists, saves, tackles, and other stats there — no Match ID, opponent, result, or Discord ID to type.\n\nUse `/portal login` first if needed.",
+            BLUE,
+        )
+        view = None
+        if PUBLIC_PORTAL_URL:
+            view = discord.ui.View(timeout=600)
+            view.add_item(discord.ui.Button(label="Submit Match Stats", url=f"{PUBLIC_PORTAL_URL}?page=player&panel=player-match-stats", emoji="📊"))
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @stats_group.command(name="view", description="View stats for a player")
     @app_commands.describe(member="Player to view (leave blank for yourself)")

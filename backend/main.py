@@ -47,7 +47,7 @@ if missing_config:
         "Missing required environment variables: " + ", ".join(missing_config)
     )
 
-app = FastAPI(title="Project Azure API", version="5.5.0", docs_url="/docs")
+app = FastAPI(title="Project Azure API", version="6.0.0", docs_url="/docs")
 
 app.add_middleware(
     CORSMiddleware,
@@ -525,6 +525,20 @@ class PlayerAvailabilitySet(BaseModel):
     status: str = Field(pattern=r"^(going|maybe|cant)$")
     note: str = Field(default="", max_length=300)
 
+class PlayerPortalStatsSubmit(BaseModel):
+    match_id: str = Field(min_length=1, max_length=50)
+    goals: int = Field(default=0, ge=0, le=100)
+    assists: int = Field(default=0, ge=0, le=100)
+    saves: int = Field(default=0, ge=0, le=500)
+    shots: int = Field(default=0, ge=0, le=500)
+    passes: int = Field(default=0, ge=0, le=5000)
+    tackles: int = Field(default=0, ge=0, le=500)
+    interceptions: int = Field(default=0, ge=0, le=500)
+
+
+class PlayerPortalMOTMVote(BaseModel):
+    nominee: str = Field(min_length=1, max_length=100)
+
 
 class ManagerLineupUpdate(BaseModel):
     lineup: str = Field(default="", max_length=2000)
@@ -544,6 +558,7 @@ class PlayerSuggestionCreate(BaseModel):
 class PlayerComplaintCreate(BaseModel):
     category: str = Field(min_length=1, max_length=50)
     message: str = Field(min_length=3, max_length=1500)
+    attachment_url: str = Field(default="", max_length=1000)
     attachment_url: str = Field(default="", max_length=1000)
 
 
@@ -817,7 +832,7 @@ def manager_role_list() -> list:
 # ─── HEALTH ──────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
-    return {"status": "online", "project": "Azure API", "version": "4.0.0"}
+    return {"status": "online", "project": "Azure API", "version": "6.0.0"}
 
 @app.get("/health")
 def health():
@@ -1386,6 +1401,105 @@ def player_me(player: dict = Depends(require_player)):
     return {"discord_id": player["discord_id"], "username": player["username"]}
 
 
+def _portal_match_result(scrim: dict) -> str:
+    broadcast = scrim.get("broadcast") or {}
+    home = int(broadcast.get("home_score", 0) or 0)
+    away = int(broadcast.get("away_score", 0) or 0)
+    if home > away:
+        prefix = "W"
+    elif home < away:
+        prefix = "L"
+    else:
+        prefix = "D"
+    return f"{prefix} {home}-{away}"
+
+
+def _player_match_eligible(scrim: dict, discord_id: str) -> bool:
+    """Use a published lineup when one exists; otherwise roster membership is enough.
+
+    Manager approval remains the final guard for stats, so older matches that did not
+    have a V5 lineup can still be reported without typing or copying a Match ID.
+    """
+    discord_id = str(discord_id)
+    lineup = scrim.get("lineup_v2") or {}
+    players = lineup.get("players") or []
+    official = [p for p in players if p.get("slot") != "reserve"]
+    if lineup.get("published") and official:
+        return any(str(p.get("discord_id", "")) == discord_id for p in official)
+    return discord_id in load("roster")
+
+
+def _player_portal_match_rows(discord_id: str) -> list[dict]:
+    stats_db = load("stats").get(str(discord_id), {})
+    rows = []
+    for scrim in get_scrims():
+        if str(scrim.get("status", "")).lower() != "finished":
+            continue
+        if not _player_match_eligible(scrim, discord_id):
+            continue
+        report = stats_db.get(str(scrim.get("id")))
+        rows.append({
+            "id": str(scrim.get("id", "")),
+            "opponent": scrim.get("opponent", "Opponent"),
+            "match_type": scrim.get("match_type", "Match"),
+            "match_time": scrim.get("match_time", ""),
+            "result": _portal_match_result(scrim),
+            "final_score": scrim.get("final_score") or f"{int((scrim.get('broadcast') or {}).get('home_score',0) or 0)}-{int((scrim.get('broadcast') or {}).get('away_score',0) or 0)}",
+            "report": report,
+            "can_submit": not report or report.get("status") == "denied",
+        })
+    return rows[:20]
+
+
+def _player_portal_motm(discord_id: str) -> list[dict]:
+    discord_id = str(discord_id)
+    if discord_id not in load("roster"):
+        return []
+    rows = []
+    for poll in get_motm_polls(active=True):
+        voters = poll.get("voters") or {}
+        rows.append({
+            "id": poll.get("id"),
+            "match_id": poll.get("match_id"),
+            "opponent": poll.get("opponent", "Opponent"),
+            "nominees": poll.get("nominees") or [],
+            "my_vote": voters.get(discord_id),
+            "can_vote": discord_id not in voters,
+            "started_at": poll.get("started_at"),
+        })
+    return rows
+
+
+def _player_pending_actions(discord_id: str) -> list[dict]:
+    discord_id = str(discord_id)
+    actions = []
+    for scrim in get_scrims():
+        status = str(scrim.get("status", "scheduled")).lower()
+        if status in {"scheduled", "live"}:
+            responded = any(discord_id in (scrim.get(key) or {}) for key in ("going", "maybe", "cant"))
+            if not responded:
+                actions.append({
+                    "type": "availability", "priority": 1, "panel": "player-availability",
+                    "title": f"Set availability vs {scrim.get('opponent','Opponent')}",
+                    "detail": scrim.get("match_time") or "Match time TBD", "match_id": scrim.get("id"),
+                })
+    for row in _player_portal_match_rows(discord_id):
+        if row.get("can_submit"):
+            actions.append({
+                "type": "stats", "priority": 2, "panel": "player-match-stats",
+                "title": f"Submit stats vs {row.get('opponent','Opponent')}",
+                "detail": row.get("result", "Finished match"), "match_id": row.get("id"),
+            })
+    for poll in _player_portal_motm(discord_id):
+        if poll.get("can_vote"):
+            actions.append({
+                "type": "motm", "priority": 3, "panel": "player-motm",
+                "title": f"Vote MOTM vs {poll.get('opponent','Opponent')}",
+                "detail": "Voting is open", "match_id": poll.get("match_id"), "poll_id": poll.get("id"),
+            })
+    return sorted(actions, key=lambda a: (a.get("priority", 99), a.get("title", "")))
+
+
 @app.get("/player/dashboard")
 def player_dashboard(player: dict = Depends(require_player)):
     discord_id = str(player["discord_id"])
@@ -1413,6 +1527,102 @@ def player_dashboard(player: dict = Depends(require_player)):
         "complaints": _owned_entries("complaints", discord_id, "submitted_at"),
         "scrims": [_player_scrim_view(scrim, discord_id) for scrim in get_scrims()],
         "shop": shop_catalog(),
+        "pending_actions": _player_pending_actions(discord_id),
+        "stat_matches": _player_portal_match_rows(discord_id),
+        "motm_polls": _player_portal_motm(discord_id),
+    }
+
+
+@app.post("/player/stats")
+async def player_submit_match_stats(data: PlayerPortalStatsSubmit, player: dict = Depends(require_player)):
+    scrims = load("scrims")
+    scrim = scrims.get(data.match_id)
+    if not scrim:
+        raise HTTPException(404, "Finished match not found")
+    if str(scrim.get("status", "")).lower() != "finished":
+        raise HTTPException(400, "Stats can only be submitted after the match is finished")
+    discord_id = str(player["discord_id"])
+    if not _player_match_eligible(scrim, discord_id):
+        raise HTTPException(403, "You are not listed as a player for this match")
+    roster_player = load("roster").get(discord_id, {})
+    payload = StatsCreate(
+        discord_id=discord_id,
+        discord_tag=player.get("username", "Player"),
+        player_username=roster_player.get("username") or player.get("username", "Player"),
+        match_id=data.match_id,
+        opponent=scrim.get("opponent", "Opponent"),
+        result=_portal_match_result(scrim),
+        goals=data.goals, assists=data.assists, saves=data.saves, shots=data.shots,
+        passes=data.passes, tackles=data.tackles, interceptions=data.interceptions,
+    )
+    return await submit_stats(payload, source="player-portal")
+
+
+def _record_motm_vote(poll_id: str, voter_id: str, voter_tag: str, nominee: str, source: str) -> dict:
+    db = load("motm")
+    if poll_id not in db:
+        raise HTTPException(404, "Poll not found")
+    poll = db[poll_id]
+    if not poll.get("active"):
+        raise HTTPException(400, "Voting has ended")
+    voters = poll.setdefault("voters", {})
+    nominees = poll.setdefault("nominees", list((poll.get("votes") or {}).keys()))
+    votes = poll.setdefault("votes", {name: 0 for name in nominees})
+    if voter_id in voters:
+        raise HTTPException(409, "You already voted in this match")
+    if nominee not in nominees:
+        raise HTTPException(400, "Invalid nominee")
+    votes[nominee] = votes.get(nominee, 0) + 1
+    voters[voter_id] = nominee
+    poll["source"] = source
+    db[poll_id] = poll
+    save("motm", db)
+    return poll
+
+
+@app.get("/player/motm")
+def player_motm_polls(player: dict = Depends(require_player)):
+    return _player_portal_motm(str(player["discord_id"]))
+
+
+@app.post("/player/motm/{poll_id}/vote")
+async def player_cast_motm_vote(poll_id: str, data: PlayerPortalMOTMVote, player: dict = Depends(require_player)):
+    discord_id = str(player["discord_id"])
+    if discord_id not in load("roster"):
+        raise HTTPException(403, "Only rostered Project Azure players can vote")
+    poll = _record_motm_vote(poll_id, discord_id, player.get("username", "Player"), data.nominee, "player-portal")
+    await manager.broadcast("motm_vote_cast", poll)
+    return {"ok": True, "my_vote": data.nominee, "poll_id": poll_id}
+
+
+@app.get("/player/actions")
+def player_actions(player: dict = Depends(require_player)):
+    return _player_pending_actions(str(player["discord_id"]))
+
+
+@app.get("/manager/action-center")
+def manager_action_center(source: str = Depends(require_client)):
+    roster = load("roster")
+    pending_reports = get_all_stats(status="pending")
+    active_polls = get_motm_polls(active=True)
+    upcoming = []
+    for scrim in get_scrims():
+        if str(scrim.get("status", "scheduled")).lower() not in {"scheduled", "live"}:
+            continue
+        responded = set()
+        for key in ("going", "maybe", "cant"):
+            responded.update(str(x) for x in (scrim.get(key) or {}).keys())
+        missing = [p for pid,p in roster.items() if str(pid) not in responded]
+        upcoming.append({"id":scrim.get("id"),"opponent":scrim.get("opponent"),"match_time":scrim.get("match_time"),"missing":missing})
+    return {
+        "pending_reports": pending_reports,
+        "active_motm": active_polls,
+        "upcoming": upcoming,
+        "counts": {
+            "pending_reports": len(pending_reports),
+            "active_motm": len(active_polls),
+            "missing_availability": sum(len(x["missing"]) for x in upcoming),
+        },
     }
 
 
@@ -1783,26 +1993,8 @@ async def create_motm(data: MOTMCreate, source: str = Depends(require_client)):
 
 @app.post("/motm/{poll_id}/vote")
 async def cast_vote(poll_id: str, data: MOTMVote, x_client: str = Header(None)):
-    db = load("motm")
-    if poll_id not in db:
-        raise HTTPException(404, "Poll not found")
-    poll = db[poll_id]
-    if not poll.get("active"):
-        raise HTTPException(400, "Voting has ended")
-    voters = poll.setdefault("voters", {})
-    nominees = poll.setdefault("nominees", list((poll.get("votes") or {}).keys()))
-    votes = poll.setdefault("votes", {name: 0 for name in nominees})
-    if data.voter_id in voters:
-        raise HTTPException(409, "You already voted in this match")
-    if data.nominee not in nominees:
-        raise HTTPException(400, "Invalid nominee")
-    votes[data.nominee] = votes.get(data.nominee, 0) + 1
-    voters[data.voter_id] = data.nominee
-    poll["source"] = "bot" if x_client == "bot" else "website"
-    db[poll_id] = poll
-    save("motm", db)
-    await manager.broadcast("motm_vote_cast", poll)
-    return poll
+    # V6 Portal-First: browser/Discord player voting moved to authenticated /player/motm.
+    raise HTTPException(status_code=410, detail="MOTM voting has moved to the secure Player Portal")
 
 @app.post("/motm/{poll_id}/close")
 async def close_motm(poll_id: str, source: str = Depends(require_client)):

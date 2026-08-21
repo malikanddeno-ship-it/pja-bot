@@ -23,6 +23,27 @@ if _raw_public_url and not _raw_public_url.startswith(("http://", "https://")):
     _raw_public_url = "https://" + _raw_public_url
 PUBLIC_PORTAL_URL = (_raw_public_url.rstrip("/") + "/portal") if _raw_public_url else ""
 
+
+def player_portal_view(panel: str = "", label: str = "Open Player Portal") -> discord.ui.View | None:
+    """Build a safe link button into the Player Portal without duplicating URL logic in cogs."""
+    if not PUBLIC_PORTAL_URL:
+        return None
+    url = PUBLIC_PORTAL_URL
+    if panel:
+        url += f"?page=player&panel={panel}"
+    view = discord.ui.View(timeout=600)
+    view.add_item(discord.ui.Button(label=label, url=url, emoji="🌐"))
+    return view
+
+
+async def send_portal_redirect(interaction: discord.Interaction, title: str, message: str, panel: str) -> None:
+    embed = pja_embed(title, message + "\n\nUse `/portal login` if you need a fresh one-use login code.", BLUE)
+    view = player_portal_view(panel)
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+    else:
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
 if not API_SECRET:
     raise RuntimeError("Missing required environment variable: PJA_API_SECRET")
 

@@ -86,12 +86,20 @@ class AvailabilityMatchView(discord.ui.View):
         self.add_item(AvailabilityMatchSelect(scrims, owner_id, status, note))
 
 
-def portal_view() -> discord.ui.View | None:
+def portal_view(panel: str = "") -> discord.ui.View | None:
     if not PUBLIC_PORTAL_URL:
         return None
+    url = PUBLIC_PORTAL_URL
+    if panel:
+        url += f"?page=player&panel={panel}"
     view = discord.ui.View(timeout=600)
-    view.add_item(discord.ui.Button(label="Open Player Portal", url=PUBLIC_PORTAL_URL, emoji="🌐"))
+    view.add_item(discord.ui.Button(label="Open Player Portal", url=url, emoji="🌐"))
     return view
+
+
+async def portal_only(interaction: discord.Interaction, title: str, message: str, panel: str):
+    embed = pja_embed(title, message + "\n\nUse `/portal login` if you are not signed in yet.", BLUE)
+    await interaction.response.send_message(embed=embed, view=portal_view(panel), ephemeral=True)
 
 
 class TalkToManagerModal(discord.ui.Modal, title="Talk to Project Azure Management"):
@@ -151,161 +159,29 @@ class PlayerPortalCog(commands.Cog):
             embed.add_field(name="Next step", value="Open your normal PJA website, choose **Player Login**, and enter the code.", inline=False)
         await interaction.followup.send(embed=embed, view=portal_view(), ephemeral=True)
 
-    @talk_group.command(name="manager", description="Start a private conversation with Project Azure management")
+    @talk_group.command(name="manager", description="Open your private manager conversation center")
     async def talk_manager(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(TalkToManagerModal())
+        await portal_only(interaction, "Talk to Management — Player Portal", "Private conversations now live in your Player Portal so your full thread stays together.", "player-chat")
 
-    @request_group.command(name="submit", description="Submit a request to management")
-    @app_commands.describe(request_type="Type of request", details="Explain exactly what you are requesting", attachment="Optional screenshot or file")
-    @app_commands.choices(request_type=REQUEST_TYPES)
-    async def request_submit(
-        self,
-        interaction: discord.Interaction,
-        request_type: app_commands.Choice[str],
-        details: str,
-        attachment: discord.Attachment = None,
-    ):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            entry = await api.create_player_request(
-                str(interaction.user.id), interaction.user.display_name,
-                request_type.value, details, attachment.url if attachment else "",
-            )
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
+    @request_group.command(name="submit", description="Open the Player Portal request center")
+    async def request_submit(self, interaction: discord.Interaction):
+        await portal_only(interaction, "Requests — Player Portal", "Submit and track requests from the website. Manager replies and status stay in one place.", "player-requests")
 
-        embed = pja_embed(
-            "Request Submitted",
-            f"Request `{entry['id']}` was sent privately to management.\n"
-            "Use `/request status` or the player portal to follow it.",
-            GREEN,
-        )
-        await interaction.followup.send(embed=embed, view=portal_view(), ephemeral=True)
-
-    @request_group.command(name="status", description="View your recent requests")
+    @request_group.command(name="status", description="Open your request history in the Player Portal")
     async def request_status(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            entries = await api.get_player_requests(str(interaction.user.id))
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
+        await portal_only(interaction, "My Requests — Player Portal", "Your request history and manager replies are now in the website.", "player-requests")
 
-        if not entries:
-            await interaction.followup.send(embed=pja_embed("No Requests", "You have not submitted any requests.", DARK), ephemeral=True)
-            return
+    @availability_group.command(name="set", description="Set availability in the Player Portal")
+    async def availability_set(self, interaction: discord.Interaction):
+        await portal_only(interaction, "Availability — Player Portal", "Choose your upcoming match and tap Available, Maybe, or Unavailable on the website. No Scrim IDs to type.", "player-availability")
 
-        embed = pja_embed("My Requests", "Your five most recent requests.", BLUE)
-        for entry in entries[:5]:
-            reply = f"\n**Manager reply:** {entry.get('reply')}" if entry.get("reply") else ""
-            embed.add_field(
-                name=f"{entry.get('request_type', 'Request')} · {str(entry.get('status', 'pending')).replace('_', ' ').title()}",
-                value=f"`{entry.get('id')}` — {entry.get('details', '')[:350]}{reply}"[:1024],
-                inline=False,
-            )
-        await interaction.followup.send(embed=embed, view=portal_view(), ephemeral=True)
-
-    @availability_group.command(name="set", description="Set your availability for an upcoming match")
-    @app_commands.describe(status="Your availability", note="Optional note, such as available after 7 PM")
-    @app_commands.choices(status=AVAILABILITY_CHOICES)
-    async def availability_set(
-        self,
-        interaction: discord.Interaction,
-        status: app_commands.Choice[str],
-        note: str = "",
-    ):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            scrims = await api.list_scrims()
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-        upcoming = [
-            scrim for scrim in scrims
-            if str(scrim.get("status", "scheduled")).lower() not in {"finished", "cancelled"}
-        ]
-        upcoming.sort(key=lambda item: item.get("match_time") or item.get("created_at") or "")
-        if not upcoming:
-            await interaction.followup.send(
-                embed=pja_embed("No Upcoming Matches", "There are no matches available to respond to.", DARK),
-                ephemeral=True,
-            )
-            return
-        await interaction.followup.send(
-            embed=pja_embed("Choose a Match", f"Availability: **{status.name}**" + (f"\nNote: {note}" if note else ""), BLUE),
-            view=AvailabilityMatchView(upcoming[:25], interaction.user.id, status.value, note),
-            ephemeral=True,
-        )
-
-    @availability_group.command(name="view", description="View upcoming matches and your availability")
+    @availability_group.command(name="view", description="View availability in the Player Portal")
     async def availability_view(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            scrims = await api.list_scrims()
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-        if not scrims:
-            await interaction.followup.send(embed=pja_embed("No Upcoming Matches", "There are no matches to respond to.", DARK), ephemeral=True)
-            return
-        user_id = str(interaction.user.id)
-        embed = pja_embed("My Match Availability", "Use `/availability set` to respond.", BLUE)
-        labels = {"going": "✅ Available", "maybe": "🟡 Maybe", "cant": "❌ Unavailable", "missing": "⚪ No response"}
-        for scrim in scrims[:8]:
-            current = "missing"
-            note = ""
-            for key in ("going", "maybe", "cant"):
-                raw = scrim.get(key, {}).get(user_id)
-                if raw is not None:
-                    current = key
-                    if isinstance(raw, dict):
-                        note = raw.get("note", "")
-                    break
-            embed.add_field(
-                name=f"{scrim.get('match_type', 'Match')} vs {scrim.get('opponent', 'Opponent')}",
-                value=f"{scrim.get('match_time', 'Time TBD')}\n{labels[current]}" + (f" — {note}" if note else ""),
-                inline=False,
-            )
-        await interaction.followup.send(embed=embed, view=portal_view(), ephemeral=True)
+        await portal_only(interaction, "My Availability — Player Portal", "Upcoming matches and your current responses are kept in your Player Portal.", "player-availability")
 
-    @app_commands.command(name="history", description="View approved match history")
-    @app_commands.describe(player="Player to view; managers can view other players")
-    async def history(self, interaction: discord.Interaction, player: discord.Member = None):
-        target = player or interaction.user
-        if target.id != interaction.user.id and not await has_manager_access(interaction):
-            await interaction.response.send_message(
-                embed=pja_embed("Private History", "Players can only view their own full match history.", RED),
-                ephemeral=True,
-            )
-            return
-        await interaction.response.defer(ephemeral=True)
-        try:
-            matches = await api.get_player_stats(str(target.id))
-        except APIError as error:
-            if error.status == 404:
-                await interaction.followup.send(embed=pja_embed("No Match History", f"{target.display_name} has no approved matches yet.", DARK), ephemeral=True)
-            else:
-                await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-
-        recent = sorted(matches.values(), key=lambda match: match.get("submitted_at", ""), reverse=True)
-        embed = pja_embed(f"{target.display_name} — Match History", f"{len(recent)} approved match(es). Showing the latest five.", BLUE)
-        embed.set_thumbnail(url=target.display_avatar.url)
-        for match in recent[:5]:
-            points = match.get("points_awarded", 0)
-            rating_change = int(match.get("card_rating_change", 0) or 0)
-            rating_text = f"{rating_change:+d}" if rating_change else "0"
-            embed.add_field(
-                name=f"vs {match.get('opponent', 'Opponent')} · {match.get('result', '—')}",
-                value=(
-                    f"Match `{match.get('match_id', '—')}` · G {match.get('goals',0)} · A {match.get('assists',0)} · "
-                    f"Saves {match.get('saves',0)} · Tackles {match.get('tackles',0)}\n"
-                    f"**+{points} points** · Card rating change: **{rating_text}**"
-                ),
-                inline=False,
-            )
-        await interaction.followup.send(embed=embed, view=portal_view(), ephemeral=True)
+    @app_commands.command(name="history", description="Open your match history in the Player Portal")
+    async def history(self, interaction: discord.Interaction):
+        await portal_only(interaction, "Match History — Player Portal", "Your approved match history, card, points, and recent form are together on the website.", "player-card-history")
 
 
 async def setup(bot):

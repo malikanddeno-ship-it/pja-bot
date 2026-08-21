@@ -160,6 +160,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:2rem 0}
 .mt-1{margin-top:.5rem}.mt-2{margin-top:1rem}.mt-3{margin-top:1.5rem}.text-center{text-align:center}
 footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:var(--muted);font-size:.8rem}
 .footer-brand{font-family:var(--display);font-weight:700;color:var(--text);margin-bottom:.25rem}
+.portal-action-hero{padding:1.25rem;border:1px solid rgba(59,130,246,.35);background:linear-gradient(135deg,rgba(59,130,246,.16),rgba(6,182,212,.08));border-radius:16px;margin-bottom:1rem}.portal-action-list{display:grid;gap:.7rem}.portal-action{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.9rem 1rem;background:var(--surface2);border:1px solid var(--border);border-radius:12px}.portal-action-main{display:flex;gap:.8rem;align-items:flex-start}.portal-action-icon{font-size:1.35rem;line-height:1}.portal-kpi{font-size:2.2rem;font-weight:850;line-height:1}.portal-stat-form{display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem}.portal-stat-form .form-group{margin:0}.portal-match-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap}.portal-choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.65rem}.portal-choice{padding:.85rem;border:1px solid var(--border);background:var(--surface2);border-radius:10px;cursor:pointer;text-align:left;color:var(--text)}.portal-choice:hover{border-color:var(--blue);background:var(--blue-dim)}.portal-choice.selected{border-color:var(--green);background:rgba(34,197,94,.12)}.portal-bottom-nav{display:none}.portal-section-title{font-size:1.15rem;font-weight:750;margin:1rem 0 .7rem}.portal-readonly-note{padding:.75rem 1rem;border:1px solid var(--border);background:var(--surface2);border-radius:10px;margin:.8rem 0}.action-center-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.action-center-kpi{padding:1rem;border:1px solid var(--border);border-radius:12px;background:var(--surface2)}
 @media(max-width:768px){nav{height:auto;min-height:64px;flex-wrap:wrap;padding:10px 14px}.nav-links{display:flex;width:100%;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}.nav-links::-webkit-scrollbar{display:none}.nav-links a{white-space:nowrap;padding:6px 10px}.nav-brand{width:100%;margin-bottom:6px}main{padding-top:112px}.section{padding:2.5rem 1rem}.grid-2,.grid-3{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.rsvp-body{grid-template-columns:1fr}.rsvp-col:not(:last-child){border-right:none;border-bottom:1px solid var(--border)}.card{overflow-x:auto}.toast-container{left:1rem;right:1rem;bottom:1rem}.toast{max-width:none}}
 
 /* V5 Club experience */
@@ -168,6 +169,8 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 .pitch-shell{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:1rem}.lineup-pitch{position:relative;min-height:650px;border:4px solid rgba(239,255,244,.9);border-radius:18px;overflow:hidden;background:repeating-linear-gradient(90deg,#176b3b 0,#176b3b 10%,#1d7843 10%,#1d7843 20%)}.lineup-pitch:before{content:'';position:absolute;left:50%;top:0;bottom:0;border-left:3px solid rgba(255,255,255,.8)}.lineup-pitch:after{content:'';position:absolute;width:150px;height:150px;border:3px solid rgba(255,255,255,.8);border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%)}.pitch-box{position:absolute;border:3px solid rgba(255,255,255,.8);width:17%;height:45%;top:27.5%}.pitch-box.left{left:0}.pitch-box.right{right:0}.lineup-chip{position:absolute;transform:translate(-50%,-50%);z-index:3;width:95px;text-align:center;touch-action:none;user-select:none;cursor:grab}.lineup-chip .bubble{width:48px;height:48px;border-radius:50%;margin:auto;display:flex;align-items:center;justify-content:center;background:#07172b;border:3px solid #63ddff;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,.45)}.lineup-chip .name{margin-top:4px;padding:3px 6px;border-radius:7px;background:rgba(3,12,23,.9);font-size:.72rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lineup-side{display:flex;flex-direction:column;gap:.75rem}.lineup-list{max-height:250px;overflow:auto}.lineup-person{display:flex;justify-content:space-between;align-items:center;padding:.55rem;border-bottom:1px solid var(--border)}.tactics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem}.broadcast-card{border:1px solid rgba(6,182,212,.35);background:linear-gradient(145deg,rgba(10,36,67,.92),rgba(6,18,35,.96));border-radius:18px;padding:1.2rem}.club-records{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem}.trophy{background:radial-gradient(circle at 50% 10%,rgba(250,204,21,.2),transparent 40%),var(--surface);border:1px solid rgba(250,204,21,.35);border-radius:18px;padding:1.2rem;text-align:center}.trophy-icon{font-size:3rem}.modal-profile-back{margin-bottom:1rem}
 @media(max-width:850px){.pitch-shell{grid-template-columns:1fr}.lineup-pitch{min-height:520px}.profile-hero{grid-template-columns:1fr;text-align:center}.profile-avatar{margin:auto}.wdl-strip{grid-template-columns:repeat(3,1fr)}.tactics-grid{grid-template-columns:1fr}}
 
+
+@media(max-width:768px){.portal-stat-form{grid-template-columns:repeat(2,1fr)}.action-center-grid{grid-template-columns:1fr}.portal-bottom-nav{display:grid;grid-template-columns:repeat(5,1fr);position:sticky;bottom:8px;z-index:80;margin:1rem 0;padding:.45rem;background:rgba(5,11,20,.94);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.38)}.portal-bottom-nav button{border:0;background:transparent;color:var(--muted);font-size:.72rem;padding:.55rem .2rem;border-radius:8px}.portal-bottom-nav button:hover{background:var(--blue-dim);color:var(--text)}.portal-action{align-items:flex-start;flex-direction:column}.portal-action .btn{width:100%}}
 </style>
 </head>
 <body>
@@ -213,7 +216,7 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
       <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">🎯</div><div class="fw-700" style="margin-bottom:.4rem">Tryout System</div><div class="text-muted text-sm">Apply with position, rating, and experience. Managers review in Discord or here.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('tryout')">Apply Now →</button></div>
       <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">👥</div><div class="fw-700" style="margin-bottom:.4rem">Team Roster</div><div class="text-muted text-sm">Live roster from Discord. Changes made by managers sync here instantly.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('roster')">View Roster →</button></div>
       <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">📊</div><div class="fw-700" style="margin-bottom:.4rem">Stats &amp; Points</div><div class="text-muted text-sm">Approved reports update season stats and automatically award points for goals, assists, saves, wins, and clean sheets.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('points')">View Points →</button></div>
-      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">⭐</div><div class="fw-700" style="margin-bottom:.4rem">MOTM Voting</div><div class="text-muted text-sm">Votes cast in Discord and here count together. Progress bars update live.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('motm')">Vote Now →</button></div>
+      <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">⭐</div><div class="fw-700" style="margin-bottom:.4rem">MOTM Voting</div><div class="text-muted text-sm">MOTM voting is handled securely in My Portal. Public results update live.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('motm')">Vote Now →</button></div>
       <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">⚽</div><div class="fw-700" style="margin-bottom:.4rem">Scrim RSVP</div><div class="text-muted text-sm">RSVP here or in Discord — both update the same list. Managers see the same headcount everywhere.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('scrims')">View Scrims →</button></div>
       <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">🔐</div><div class="fw-700" style="margin-bottom:.4rem">My Player Portal</div><div class="text-muted text-sm">Private match history, points, requests, availability, shop, and direct management chat.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('player')">Player Login →</button></div>
       <div class="card"><div style="font-size:1.5rem;margin-bottom:.75rem">🔧</div><div class="fw-700" style="margin-bottom:.4rem">Manager Dashboard</div><div class="text-muted text-sm">Review applications, manage roster, start polls, post scrims — all synced to Discord.</div><button class="btn btn-ghost mt-2 text-sm" onclick="showPage('manager')">Dashboard →</button></div>
@@ -283,26 +286,9 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
     <div class="grid-2">
       <div>
         <div class="card">
-          <div class="fw-700" style="margin-bottom:1rem">Submit Match Stats</div>
-          <div id="stats-alert" class="hidden"></div>
-          <div class="form-grid">
-            <div class="form-group"><label>Match ID</label><input id="s-matchid" type="text" placeholder="e.g. M001"/></div>
-            <div class="form-group"><label>Opponent</label><input id="s-opp" type="text" placeholder="Team name"/></div>
-          </div>
-          <div class="form-grid">
-            <div class="form-group"><label>Result</label><input id="s-result" type="text" placeholder="e.g. W 3-1"/></div>
-            <div class="form-group"><label>Your Discord ID</label><input id="s-discordid" type="text" placeholder="18-digit ID"/></div>
-          </div>
-          <div class="form-group"><label>Your Username</label><input id="s-username" type="text" placeholder="VRFS username"/></div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem">
-            <div class="form-group"><label>Goals</label><input id="s-goals" type="number" min="0" value="0"/></div>
-            <div class="form-group"><label>Assists</label><input id="s-assists" type="number" min="0" value="0"/></div>
-            <div class="form-group"><label>Saves</label><input id="s-saves" type="number" min="0" value="0"/></div>
-            <div class="form-group"><label>Shots</label><input id="s-shots" type="number" min="0" value="0"/></div>
-            <div class="form-group"><label>Passes</label><input id="s-passes" type="number" min="0" value="0"/></div>
-            <div class="form-group"><label>Tackles</label><input id="s-tackles" type="number" min="0" value="0"/></div>
-          </div>
-          <button class="btn btn-primary full-w" onclick="submitStats()">Submit Stats</button>
+          <div class="fw-700" style="margin-bottom:.6rem">🔐 Match Stats Are Player-Portal Only</div>
+          <div class="text-muted text-sm">V6 automatically loads finished matches for your account. No Match IDs, Discord IDs, opponent names, or results to type.</div>
+          <button class="btn btn-primary full-w mt-2" onclick="openPortalPanel('player-match-stats')">Open My Match Stats</button>
         </div>
       </div>
       <div>
@@ -319,7 +305,7 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 <!-- POINTS & SHOP -->
 <div class="page" id="page-points">
   <div class="section">
-    <div class="section-header"><h2>Points &amp; Rewards</h2><div class="divider"></div><p>Approved match reports award points automatically. Use Discord commands to buy rewards and generate your player card.</p></div>
+    <div class="section-header"><h2>Points &amp; Rewards</h2><div class="divider"></div><p>Approved match reports award points automatically. Players purchase rewards and view their full card inside My Portal.</p></div>
     <div class="grid-2">
       <div class="card">
         <div class="fw-700" style="margin-bottom:1rem">Check Player Points</div>
@@ -330,28 +316,30 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
       <div class="card">
         <div class="fw-700" style="margin-bottom:.75rem">Automatic Match Points</div>
         <div class="text-sm text-muted" style="line-height:2">
-          Played in match: <strong>+3</strong><br/>
-          Team win: <strong>+5</strong><br/>
-          Goal: <strong>+10 each</strong><br/>
-          Assist: <strong>+7 each</strong><br/>
-          Save: <strong>+2 each</strong><br/>
-          Clean sheet: <strong>+10</strong><br/>
-          Man of the Match: <strong>+15</strong>
+          Played in match: <strong>+50</strong><br/>
+          Team win: <strong>+100</strong><br/>
+          Team draw: <strong>+50</strong><br/>
+          Goal: <strong>+150 each</strong><br/>
+          Assist: <strong>+100 each</strong><br/>
+          Save: <strong>+50 each</strong> <span class="text-muted">(max +250)</span><br/>
+          Clean sheet: <strong>+150</strong><br/>
+          Strong defensive performance: <strong>+100</strong><br/>
+          Man of the Match: <strong>+200</strong>
         </div>
       </div>
     </div>
     <div class="section-header mt-3"><h2 style="font-size:1.35rem">Points Leaderboard</h2><div class="divider"></div></div>
     <div id="points-leaderboard"><div class="loading-state"><div class="spinner"></div>Loading points...</div></div>
-    <div class="section-header mt-3"><h2 style="font-size:1.35rem">PJA Shop</h2><div class="divider"></div><p>Use <strong>/shop buy</strong> in Discord to purchase. Managers fulfill orders from this dashboard.</p></div>
+    <div class="section-header mt-3"><h2 style="font-size:1.35rem">PJA Shop</h2><div class="divider"></div><p>Log into <strong>My Portal</strong> to purchase. Managers fulfill orders from the dashboard.</p></div>
     <div class="grid-3" id="shop-catalog"><div class="loading-state"><div class="spinner"></div>Loading shop...</div></div>
-    <div class="alert alert-info mt-3">Use <strong>/card view</strong> in Discord to generate a realistic card from your roster rating, approved stats, points, avatar, and unlocked theme.</div>
+    <div class="alert alert-info mt-3">Players can see their card, match history, points, orders, and inventory together inside <strong>My Portal</strong>.</div>
   </div>
 </div>
 
 <!-- MOTM -->
 <div class="page" id="page-motm">
   <div class="section">
-    <div class="section-header"><h2>Man of the Match</h2><div class="divider"></div><p>Votes from Discord and here count together. Progress bars update live as votes come in from either surface.</p></div>
+    <div class="section-header"><h2>Man of the Match</h2><div class="divider"></div><p>Voting is secure and Player-Portal only. This public page shows live voting status and past results.</p></div>
     <div id="motm-active-section"></div>
     <hr class="sep"/>
     <div class="fw-700" style="margin-bottom:1rem">Past Results</div>
@@ -400,7 +388,7 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 <!-- PLAYER PORTAL -->
 <div class="page" id="page-player">
   <div class="section">
-    <div class="section-header"><h2>My Player Portal</h2><div class="divider"></div><p>Your private PJA profile, card, points, match history, requests, availability, and conversations with management.</p></div>
+    <div class="section-header"><h2>My Player Portal</h2><div class="divider"></div><p>V6 Player HQ — availability, match stats, MOTM voting, points, card, shop, requests, and everything you need in one private place.</p></div>
 
     <div class="card" id="player-login-card" style="margin-bottom:1.5rem">
       <div class="fw-700" style="margin-bottom:.5rem">Secure Player Login</div>
@@ -418,16 +406,22 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
         <button class="btn btn-ghost btn-sm" onclick="playerLogout()">Sign Out</button>
       </div>
       <div class="player-tabs">
-        <button class="player-tab-btn active" onclick="openPlayerPanel('player-overview',this)">Overview</button>
-        <button class="player-tab-btn" onclick="openPlayerPanel('player-card-history',this)">Card &amp; History</button>
-        <button class="player-tab-btn" onclick="openPlayerPanel('player-shop',this)">Shop</button>
-        <button class="player-tab-btn" onclick="openPlayerPanel('player-chat',this)">Talk to Manager</button>
-        <button class="player-tab-btn" onclick="openPlayerPanel('player-requests',this)">Requests</button>
-        <button class="player-tab-btn" onclick="openPlayerPanel('player-availability',this)">Availability</button>
-        <button class="player-tab-btn" onclick="openPlayerPanel('player-feedback',this)">Suggestions &amp; Complaints</button>
+        <button class="player-tab-btn active" data-panel="player-actions" onclick="openPlayerPanel('player-actions',this)">⚡ Actions</button>
+        <button class="player-tab-btn" data-panel="player-overview" onclick="openPlayerPanel('player-overview',this)">Overview</button>
+        <button class="player-tab-btn" data-panel="player-match-stats" onclick="openPlayerPanel('player-match-stats',this)">Match Stats</button>
+        <button class="player-tab-btn" data-panel="player-motm" onclick="openPlayerPanel('player-motm',this)">MOTM</button>
+        <button class="player-tab-btn" data-panel="player-availability" onclick="openPlayerPanel('player-availability',this)">Availability</button>
+        <button class="player-tab-btn" data-panel="player-card-history" onclick="openPlayerPanel('player-card-history',this)">Card &amp; History</button>
+        <button class="player-tab-btn" data-panel="player-shop" onclick="openPlayerPanel('player-shop',this)">Shop</button>
+        <button class="player-tab-btn" data-panel="player-chat" onclick="openPlayerPanel('player-chat',this)">Talk to Manager</button>
+        <button class="player-tab-btn" data-panel="player-requests" onclick="openPlayerPanel('player-requests',this)">Requests</button>
+        <button class="player-tab-btn" data-panel="player-feedback" onclick="openPlayerPanel('player-feedback',this)">Suggestions &amp; Complaints</button>
       </div>
 
-      <div class="player-tab-panel active" id="player-overview"><div id="player-overview-content"><div class="loading-state"><div class="spinner"></div>Loading...</div></div></div>
+      <div class="player-tab-panel active" id="player-actions"><div id="player-actions-content"><div class="loading-state"><div class="spinner"></div>Checking what needs your attention...</div></div></div>
+      <div class="player-tab-panel" id="player-overview"><div id="player-overview-content"><div class="loading-state"><div class="spinner"></div>Loading...</div></div></div>
+      <div class="player-tab-panel" id="player-match-stats"><div id="player-match-stats-content"></div></div>
+      <div class="player-tab-panel" id="player-motm"><div id="player-motm-content"></div></div>
       <div class="player-tab-panel" id="player-card-history"><div class="grid-2"><div id="player-card-content"></div><div><div class="fw-700" style="margin-bottom:.75rem">My Match History</div><div id="player-history-content"></div></div></div></div>
       <div class="player-tab-panel" id="player-shop"><div id="player-shop-content"></div></div>
       <div class="player-tab-panel" id="player-chat">
@@ -444,6 +438,7 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
           <div class="fw-700" style="margin-bottom:1rem">Submit a Request</div>
           <div class="form-group"><label>Request Type</label><select id="pr-type"><option>Profile or card change</option><option>Position or roster change</option><option>Shop reward fulfillment</option><option>Leave or absence</option><option>Match-stat correction</option><option>Trial or promotion</option><option>Role request</option><option>Other</option></select></div>
           <div class="form-group"><label>Details</label><textarea id="pr-details"></textarea></div>
+          <div class="form-group"><label>Attachment link <span class="text-muted">(optional)</span></label><input id="pr-attachment" type="url" placeholder="https://..."/></div>
           <button class="btn btn-primary" onclick="playerSubmitRequest()">Submit Request</button>
         </div>
         <div id="player-requests-content"></div>
@@ -452,9 +447,16 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
       <div class="player-tab-panel" id="player-feedback">
         <div class="grid-2">
           <div class="card"><div class="fw-700" style="margin-bottom:1rem">Send a Suggestion</div><div class="form-group"><label>Category</label><select id="pf-sug-category"><option>Bot</option><option>Website</option><option>Team</option><option>Events</option><option>Other</option></select></div><div class="form-group"><label>Suggestion</label><textarea id="pf-sug-message"></textarea></div><button class="btn btn-primary" onclick="playerSubmitSuggestion()">Send Suggestion</button></div>
-          <div class="card"><div class="fw-700" style="margin-bottom:1rem">Private Complaint</div><div class="form-group"><label>Category</label><select id="pf-cmp-category"><option>Player conduct</option><option>Manager conduct</option><option>Match issue</option><option>Bot or website</option><option>Other</option></select></div><div class="form-group"><label>Complaint</label><textarea id="pf-cmp-message"></textarea></div><button class="btn btn-red" onclick="playerSubmitComplaint()">Send Privately</button></div>
+          <div class="card"><div class="fw-700" style="margin-bottom:1rem">Private Complaint</div><div class="form-group"><label>Category</label><select id="pf-cmp-category"><option>Player conduct</option><option>Manager conduct</option><option>Match issue</option><option>Bot or website</option><option>Other</option></select></div><div class="form-group"><label>Complaint</label><textarea id="pf-cmp-message"></textarea></div><div class="form-group"><label>Attachment link <span class="text-muted">(optional)</span></label><input id="pf-cmp-attachment" type="url" placeholder="https://..."/></div><button class="btn btn-red" onclick="playerSubmitComplaint()">Send Privately</button></div>
         </div>
         <div id="player-feedback-content" class="mt-2"></div>
+      </div>
+      <div class="portal-bottom-nav">
+        <button onclick="openPlayerPanelById('player-actions')">⚡<br/>Actions</button>
+        <button onclick="openPlayerPanelById('player-match-stats')">📊<br/>Stats</button>
+        <button onclick="openPlayerPanelById('player-motm')">⭐<br/>MOTM</button>
+        <button onclick="openPlayerPanelById('player-availability')">📅<br/>Avail.</button>
+        <button onclick="openPlayerPanelById('player-overview')">👤<br/>Me</button>
       </div>
     </div>
   </div>
@@ -488,7 +490,8 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
 
     <div id="manager-tools" style="display:none">
     <div class="tabs">
-      <button class="tab-btn active" onclick="openTab('tab-apps',this)">Applications</button>
+      <button class="tab-btn active" onclick="openTab('tab-action-center',this)">⚡ Action Center</button>
+      <button class="tab-btn" onclick="openTab('tab-apps',this)">Applications</button>
       <button class="tab-btn" onclick="openTab('tab-match-reports',this)">Match Reports</button>
       <button class="tab-btn" onclick="openTab('tab-points-mgr',this)">Points</button>
       <button class="tab-btn" onclick="openTab('tab-shop-orders',this)">Shop Orders</button>
@@ -510,7 +513,12 @@ footer{border-top:1px solid var(--border);padding:2rem;text-align:center;color:v
       <button class="tab-btn" onclick="openTab('tab-welcomer',this)">Welcomer</button>
     </div>
 
-    <div class="tab-panel active" id="tab-apps">
+    <div class="tab-panel active" id="tab-action-center">
+      <div class="alert alert-info">Portal-first overview: see what the squad still needs to complete before you chase people manually.</div>
+      <div id="mgr-action-center" class="mt-2"><div class="loading-state"><div class="spinner"></div>Loading player actions...</div></div>
+    </div>
+
+    <div class="tab-panel" id="tab-apps">
       <div class="card" style="margin-bottom:1rem">
         <div class="fw-700" style="margin-bottom:.35rem">Saved Tryout Applications</div>
         <div class="text-sm text-muted" style="margin-bottom:1rem">Every Discord and website application is stored in the Railway volume, even after its Discord review message is deleted.</div>
@@ -966,6 +974,7 @@ function openTab(id, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
+  if (id === 'tab-action-center') refreshMgrActionCenter();
   if (id === 'tab-apps') refreshMgrApps();
   if (id === 'tab-match-reports') refreshMgrMatchReports();
   if (id === 'tab-points-mgr') refreshMgrPoints();
@@ -1113,87 +1122,7 @@ async function refreshRoster() {
 }
 
 // ─── STATS ─────────────────────────────────────────────────────────────────────
-async function submitStats() {
-  const matchId = document.getElementById('s-matchid').value.trim();
-  const opp = document.getElementById('s-opp').value.trim();
-  const result = document.getElementById('s-result').value.trim();
-  const discordId = document.getElementById('s-discordid').value.trim();
-  const username = document.getElementById('s-username').value.trim();
-  const alertEl = document.getElementById('stats-alert');
-  alertEl.className = 'hidden';
-  if (!matchId || !opp || !result || !discordId) {
-    alertEl.className = 'alert alert-error';
-    alertEl.textContent = '❌ Match ID, Opponent, Result and Discord ID are required.';
-    return;
-  }
-  try {
-    await apiAuth('/stats', 'POST', {
-      discord_id: discordId, discord_tag: username || discordId,
-      match_id: matchId, opponent: opp, result,
-      player_username: username,
-      goals: +document.getElementById('s-goals').value||0,
-      assists: +document.getElementById('s-assists').value||0,
-      saves: +document.getElementById('s-saves').value||0,
-      shots: +document.getElementById('s-shots').value||0,
-      passes: +document.getElementById('s-passes').value||0,
-      tackles: +document.getElementById('s-tackles').value||0,
-      interceptions: 0,
-    });
-    alertEl.className = 'alert alert-success';
-    alertEl.textContent = '✅ Stats submitted for manager approval. Points are awarded after approval.';
-    refreshStats();
-  } catch(err) {
-    alertEl.className = 'alert alert-error';
-    alertEl.textContent = '❌ ' + err.message;
-  }
-}
-
-async function refreshStats() {
-  // Leaderboard
-  const lb = document.getElementById('leaderboard-list');
-  try {
-    const board = await apiFetch('/stats/leaderboard');
-    const medals = ['🥇','🥈','🥉'];
-    lb.innerHTML = board.slice(0,8).map((e,i) => `
-      <div class="card" style="margin-bottom:.75rem;display:flex;align-items:center;gap:1rem">
-        <div style="font-size:1.3rem;min-width:28px">${medals[i]||`${i+1}.`}</div>
-        <div style="flex:1"><div class="fw-700">${esc(e.username)}</div><div class="text-sm text-muted">${e.matches} match(es)</div></div>
-        <div class="text-sm text-right"><div>⚽ ${e.goals}</div><div class="text-muted">🅰️ ${e.assists}</div></div>
-      </div>`).join('') || '<div class="text-muted text-sm">No stats yet.</div>';
-  } catch(e) { lb.innerHTML = '<div class="text-muted text-sm">Offline</div>'; }
-
-  // Match reports
-  const mr = document.getElementById('match-reports');
-  try {
-    const all = await apiFetch('/stats');
-    const byMatch = {};
-    all.forEach(s => {
-      if (!byMatch[s.match_id]) byMatch[s.match_id] = {id:s.match_id,opponent:s.opponent,result:s.result,date:s.submitted_at?.slice(0,10),players:[]};
-      byMatch[s.match_id].players.push(s);
-    });
-    const matches = Object.values(byMatch).slice(0,6);
-    mr.innerHTML = matches.map(m => `
-      <div class="card" style="margin-bottom:1rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
-          <div><span class="fw-700">vs ${esc(m.opponent)}</span>
-            <span class="badge ${m.result?.toUpperCase().startsWith('W')?'badge-green':m.result?.toUpperCase().startsWith('L')?'badge-red':'badge-yellow'}" style="margin-left:8px">${esc(m.result)}</span>
-          </div>
-          <span class="text-sm text-muted">${m.id} · ${m.date||''}</span>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem">
-          ${m.players.map(p => `
-            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.75rem">
-              <div class="fw-700 text-sm" style="margin-bottom:.5rem">${esc(p.player_username||p.discord_tag||p.discord_id)}</div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">
-                <div class="stat-box"><div class="sv">${p.goals}</div><div class="sl">G</div></div>
-                <div class="stat-box"><div class="sv">${p.assists}</div><div class="sl">A</div></div>
-                <div class="stat-box"><div class="sv">${p.saves}</div><div class="sl">SV</div></div>
-              </div>
-            </div>`).join('')}
-        </div>
-      </div>`).join('') || '<div class="text-muted text-sm">No match reports yet.</div>';
-  } catch(e) { mr.innerHTML = '<div class="text-muted text-sm">Offline</div>'; }
-}
+async function submitStats() { openPortalPanel('player-match-stats'); toast('Match stats are submitted from your secure Player Portal.'); }
 
 // ─── POINTS & SHOP ─────────────────────────────────────────────────────────────
 async function refreshPoints() {
@@ -1266,7 +1195,7 @@ function renderActivePolls(polls, container) {
             const votes = p.votes[name]||0;
             const pct = total ? Math.round((votes/total)*100) : 0;
             return `
-              <div class="vote-card ${myVote===name?'my-vote':''}" id="vc-${p.id}-${safeid(name)}" onclick="castVote('${esc(p.id)}','${esc(name)}')">
+              <div class="vote-card ${myVote===name?'my-vote':''}" id="vc-${p.id}-${safeid(name)}">
                 <div class="vote-name">${esc(name)}</div>
                 <div class="vote-count" id="vc-count-${p.id}-${safeid(name)}">${votes}</div>
                 <div class="text-sm text-muted">${pct}%</div>
@@ -1274,6 +1203,7 @@ function renderActivePolls(polls, container) {
               </div>`;
           }).join('')}
         </div>
+        <div class="portal-readonly-note">Voting requires your secure player session. <button class="btn btn-primary btn-sm" onclick="openPortalPanel('player-motm')">Vote in My Portal</button></div>
       </div>`;
   }).join('');
 }
@@ -1305,23 +1235,7 @@ function renderPastPolls(polls, container) {
   }).join('');
 }
 
-async function castVote(pollId, nominee) {
-  if (SESSION_VOTES[pollId]) { toast('You already voted in this session!', 'error'); return; }
-  const voterTag = prompt('Enter your Discord tag or username to vote:');
-  if (!voterTag?.trim()) return;
-  try {
-    const poll = await apiFetch(`/motm/${pollId}/vote`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({voter_id: `web_${Date.now()}`, voter_tag: voterTag, nominee})
-    });
-    SESSION_VOTES[pollId] = nominee;
-    toast(`Voted for ${nominee}! ⭐`);
-    updatePollUI(poll);
-  } catch(err) {
-    toast(err.message, 'error');
-  }
-}
+async function castVote(pollId, nominee) { openPortalPanel('player-motm'); }
 
 function updatePollUI(poll) {
   const total = Object.values(poll.votes).reduce((a,b) => a+b, 0);
@@ -1392,22 +1306,7 @@ function renderScrimCard(s) {
     </div>`;
 }
 
-async function scrimRSVP(scrimId, status) {
-  const username = prompt('Enter your VRFS username:');
-  if (!username?.trim()) return;
-  const discordId = `web_${username.trim().replace(/\s+/g,'_')}`;
-  try {
-    const scrim = await apiFetch(`/scrims/${scrimId}/rsvp`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({discord_id: discordId, username: username.trim(), status})
-    });
-    SESSION_RSVP[scrimId] = status;
-    const labels = {going:"You're going ✅", maybe:'Marked as maybe 🟡', cant:"Can't go ❌"};
-    toast(labels[status]);
-    const card = document.getElementById(`scrim-${scrimId}`);
-    if (card) card.outerHTML = renderScrimCard(scrim);
-  } catch(err) { toast(err.message, 'error'); }
-}
+async function scrimRSVP(scrimId,status){ openPortalPanel('player-availability'); toast('Availability is saved from your secure Player Portal.'); }
 
 function onWSScrimCreated(s) {
   toast(`⚽ New scrim posted: vs ${s.opponent} (${s.match_time})`);
@@ -1423,29 +1322,38 @@ function onWSScrimDeleted(d) {
 }
 
 // ─── PLAYER PORTAL ─────────────────────────────────────────────────────────────
-function openPlayerPanel(id,btn){document.querySelectorAll('.player-tab-panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.player-tab-btn').forEach(b=>b.classList.remove('active'));document.getElementById(id).classList.add('active');btn.classList.add('active');}
+function openPlayerPanel(id,btn){document.querySelectorAll('.player-tab-panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.player-tab-btn').forEach(b=>b.classList.remove('active'));const panel=document.getElementById(id);if(panel)panel.classList.add('active');const tab=btn||document.querySelector(`.player-tab-btn[data-panel="${id}"]`);if(tab)tab.classList.add('active');}
+function openPlayerPanelById(id){openPlayerPanel(id,null);window.scrollTo({top:document.getElementById('page-player')?.offsetTop||0,behavior:'smooth'});}
+function openPortalPanel(id){showPage('player');openPlayerPanelById(id);}
 function statusBadge(status){return `<span class="status-pill">${esc(String(status||'pending').replaceAll('_',' '))}</span>`;}
 function statTotals(matches){return matches.reduce((a,m)=>{a.goals+=m.goals||0;a.assists+=m.assists||0;a.saves+=m.saves||0;a.tackles+=m.tackles||0;a.matches++;return a;},{goals:0,assists:0,saves:0,tackles:0,matches:0});}
-async function refreshPlayerPortal(){updatePlayerAuthUI();if(!getPlayerToken())return;try{PLAYER_DATA=await apiPlayer('/player/dashboard');renderPlayerPortal(PLAYER_DATA);}catch(err){toast(err.message,'error');}}
-function renderPlayerPortal(d){const profile=d.profile||{};const totals=statTotals(d.matches||[]);const balance=Number(d.points?.balance||0);document.getElementById('player-overview-content').innerHTML=`<div class="grid-3"><div class="card"><div class="text-muted text-sm">Points</div><div style="font-size:2rem;font-weight:800">${balance.toLocaleString()}</div></div><div class="card"><div class="text-muted text-sm">Approved Matches</div><div style="font-size:2rem;font-weight:800">${totals.matches}</div></div><div class="card"><div class="text-muted text-sm">Open Requests</div><div style="font-size:2rem;font-weight:800">${(d.requests||[]).filter(x=>!['completed','declined'].includes(x.status)).length}</div></div></div><div class="card mt-2"><div class="fw-700">${esc(profile.username||d.account.username)}</div><div class="text-muted text-sm">${esc(profile.position||'No roster position')} · ${profile.overall||'—'} OVR · ${esc(profile.status||'Not on roster')}</div><div class="mt-2">Goals <strong>${totals.goals}</strong> · Assists <strong>${totals.assists}</strong> · Saves <strong>${totals.saves}</strong> · Tackles <strong>${totals.tackles}</strong></div></div>`;
+function actionIcon(type){return {availability:'📅',stats:'📊',motm:'⭐'}[type]||'⚡';}
+async function refreshPlayerPortal(){updatePlayerAuthUI();if(!getPlayerToken())return;try{PLAYER_DATA=await apiPlayer('/player/dashboard');renderPlayerPortal(PLAYER_DATA);const requested=new URLSearchParams(location.search).get('panel');if(requested&&document.getElementById(requested))openPlayerPanelById(requested);}catch(err){toast(err.message,'error');}}
+function renderPlayerActions(actions){const el=document.getElementById('player-actions-content');if(!actions.length){el.innerHTML=`<div class="portal-action-hero"><div style="font-size:1.35rem;font-weight:800">✅ You're caught up</div><div class="text-muted mt-1">No availability, match-stat, or MOTM actions are waiting for you.</div></div>`;return;}el.innerHTML=`<div class="portal-action-hero"><div class="text-muted text-sm">NEEDS YOUR ATTENTION</div><div class="portal-kpi mt-1">${actions.length}</div><div class="fw-700">${actions.length===1?'action':'actions'} waiting</div></div><div class="portal-action-list">${actions.map(a=>`<div class="portal-action"><div class="portal-action-main"><div class="portal-action-icon">${actionIcon(a.type)}</div><div><div class="fw-700">${esc(a.title)}</div><div class="text-muted text-sm">${esc(a.detail||'')}</div></div></div><button class="btn btn-primary btn-sm" onclick="openPlayerPanelById('${esc(a.panel)}')">Do it now</button></div>`).join('')}</div>`;}
+function renderPlayerStats(rows){const el=document.getElementById('player-match-stats-content');if(!rows.length){el.innerHTML='<div class="card"><div class="fw-700">No finished matches yet</div><div class="text-muted text-sm mt-1">When a match finishes, your report form appears here automatically.</div></div>';return;}el.innerHTML=`<div class="alert alert-info">Pick the finished match below. PJA fills the opponent, result, Match ID, and your account automatically. Your report still needs manager approval before points are awarded.</div>${rows.map(r=>{const report=r.report||null;if(report&&!r.can_submit){return `<div class="card mt-1"><div class="portal-match-head"><div><div class="fw-700">vs ${esc(r.opponent)} · ${esc(r.result)}</div><div class="text-muted text-sm">${esc(r.match_type)} · ${esc(r.match_time||'')}</div></div>${statusBadge(report.status)}</div><div class="text-sm mt-1">G ${report.goals||0} · A ${report.assists||0} · Saves ${report.saves||0} · Tackles ${report.tackles||0} · Interceptions ${report.interceptions||0}</div>${report.status==='pending'?'<div class="alert alert-info mt-1">Waiting for manager review.</div>':''}</div>`;}return `<div class="card mt-1"><div class="portal-match-head"><div><div class="fw-700">📊 vs ${esc(r.opponent)} · ${esc(r.result)}</div><div class="text-muted text-sm">${esc(r.match_type)} · ${esc(r.match_time||'')}${report?.status==='denied'?' · Previous report denied — you may resubmit':''}</div></div><span class="badge badge-blue">Ready</span></div><div class="portal-stat-form mt-2">${['goals','assists','saves','shots','passes','tackles','interceptions'].map(k=>`<div class="form-group"><label>${k[0].toUpperCase()+k.slice(1)}</label><input id="ps-${k}-${safeid(r.id)}" type="number" min="0" value="0" inputmode="numeric"/></div>`).join('')}</div><button class="btn btn-primary full-w mt-2" onclick="playerSubmitStats('${esc(r.id)}')">Submit My Match Stats</button></div>`;}).join('')}`;}
+async function playerSubmitStats(id){const keys=['goals','assists','saves','shots','passes','tackles','interceptions'];const body={match_id:id};for(const k of keys)body[k]=Math.max(0,Number(document.getElementById(`ps-${k}-${safeid(id)}`)?.value||0));if(!confirm('Submit these stats for manager approval?'))return;try{await apiPlayer('/player/stats','POST',body);toast('Match stats submitted for manager approval.');await refreshPlayerPortal();openPlayerPanelById('player-match-stats');}catch(err){toast(err.message,'error');}}
+function renderPlayerMOTM(polls){const el=document.getElementById('player-motm-content');if(!polls.length){el.innerHTML='<div class="card"><div class="fw-700">No MOTM vote open</div><div class="text-muted text-sm mt-1">When management opens voting after a match, it appears here.</div></div>';return;}el.innerHTML=polls.map(p=>`<div class="card" style="margin-bottom:1rem"><div class="portal-match-head"><div><div class="fw-700">⭐ MOTM vs ${esc(p.opponent)}</div><div class="text-muted text-sm">Secure vote · one vote per Discord account</div></div>${p.my_vote?statusBadge('voted'):statusBadge('open')}</div>${p.my_vote?`<div class="alert alert-success mt-2">Your vote: <strong>${esc(p.my_vote)}</strong></div>`:`<div class="portal-choice-grid mt-2">${(p.nominees||[]).map(n=>`<button class="portal-choice" onclick="playerVoteMOTM('${esc(p.id)}','${esc(n)}')"><strong>${esc(n)}</strong><div class="text-muted text-sm">Vote for this player</div></button>`).join('')}</div>`}</div>`).join('');}
+async function playerVoteMOTM(pollId,nominee){if(!confirm(`Vote for ${nominee} as MOTM? You cannot change it later.`))return;try{await apiPlayer(`/player/motm/${encodeURIComponent(pollId)}/vote`,'POST',{nominee});toast(`Vote recorded for ${nominee}.`);await refreshPlayerPortal();openPlayerPanelById('player-motm');}catch(err){toast(err.message,'error');}}
+function renderPlayerPortal(d){const profile=d.profile||{};const totals=statTotals(d.matches||[]);const balance=Number(d.points?.balance||0);renderPlayerActions(d.pending_actions||[]);renderPlayerStats(d.stat_matches||[]);renderPlayerMOTM(d.motm_polls||[]);const pointHistory=(d.points?.history||[]).slice(0,8);document.getElementById('player-overview-content').innerHTML=`<div class="grid-3"><div class="card"><div class="text-muted text-sm">Points</div><div style="font-size:2rem;font-weight:800">${balance.toLocaleString()}</div></div><div class="card"><div class="text-muted text-sm">Approved Matches</div><div style="font-size:2rem;font-weight:800">${totals.matches}</div></div><div class="card"><div class="text-muted text-sm">Pending Actions</div><div style="font-size:2rem;font-weight:800">${(d.pending_actions||[]).length}</div></div></div><div class="card mt-2"><div class="fw-700">${esc(profile.username||d.account.username)}</div><div class="text-muted text-sm">${esc(profile.position||'No roster position')} · ${profile.overall||'—'} OVR · ${esc(profile.status||'Not on roster')}</div><div class="mt-2">Goals <strong>${totals.goals}</strong> · Assists <strong>${totals.assists}</strong> · Saves <strong>${totals.saves}</strong> · Tackles <strong>${totals.tackles}</strong></div></div><div class="card mt-2"><div class="fw-700">Recent Point Changes</div>${pointHistory.map(h=>`<div class="event-item"><strong>${Number(h.amount||0)>=0?'+':''}${Number(h.amount||0).toLocaleString()} pts</strong><div class="text-muted text-sm">${esc(h.reason||'Point adjustment')} · Balance ${Number(h.balance_after||0).toLocaleString()}</div></div>`).join('')||'<div class="text-muted text-sm mt-1">No point changes yet.</div>'}</div>`;
 const initial=(profile.username||d.account.username||'?').slice(0,1).toUpperCase();document.getElementById('player-card-content').innerHTML=`<div class="player-card-ui"><div class="pc-head"><div><div class="pc-ovr">${profile.overall||70}</div><div class="pc-pos">${esc((profile.position||'PJA').slice(0,3).toUpperCase())}</div></div><div class="nav-logo">⚡</div></div><div class="pc-avatar">${esc(initial)}</div><div class="pc-name">${esc(profile.username||d.account.username)}</div><div class="pc-stats"><div class="pc-stat"><strong>${totals.goals}</strong>GLS</div><div class="pc-stat"><strong>${totals.assists}</strong>AST</div><div class="pc-stat"><strong>${totals.saves}</strong>SAV</div><div class="pc-stat"><strong>${totals.tackles}</strong>TCK</div><div class="pc-stat"><strong>${totals.matches}</strong>MAT</div><div class="pc-stat"><strong>${balance}</strong>PTS</div></div></div>`;
 document.getElementById('player-history-content').innerHTML=(d.matches||[]).slice(0,15).map(m=>`<div class="card" style="margin-bottom:.6rem"><div class="fw-700">vs ${esc(m.opponent)} · ${esc(m.result)}</div><div class="text-muted text-sm">${esc(m.match_id)} · G ${m.goals||0} · A ${m.assists||0} · Saves ${m.saves||0} · Tackles ${m.tackles||0}</div><div class="text-sm mt-1"><strong>+${m.points_awarded||0} points</strong> · Card rating change: ${(m.card_rating_change||0)>0?'+':''}${m.card_rating_change||0}</div></div>`).join('')||'<div class="text-muted text-sm">No approved matches yet.</div>';
-document.getElementById('player-shop-content').innerHTML=`<div class="grid-3">${(d.shop||[]).map(i=>`<div class="card"><div class="fw-700">${esc(i.name)}</div><div class="text-muted text-sm mt-1">${esc(i.description)}</div><div class="mt-2"><strong>${Number(i.price).toLocaleString()} points</strong></div><button class="btn btn-primary btn-sm mt-2" onclick="playerBuyShop('${esc(i.id)}')">Buy</button></div>`).join('')}</div><div class="fw-700 mt-3">My Orders &amp; Inventory</div>${(d.orders||[]).map(o=>`<div class="card mt-1"><strong>${esc(o.item_name)}</strong> ${statusBadge(o.status)}<div class="text-muted text-sm">${Number(o.price).toLocaleString()} points${o.manager_note?' · '+esc(o.manager_note):''}</div></div>`).join('')||'<div class="text-muted text-sm mt-1">No purchases yet.</div>'}`;
-renderPlayerConversations(d.conversations||[]);renderPlayerRequests(d.requests||[]);renderPlayerAvailability(d.scrims||[]);document.getElementById('player-feedback-content').innerHTML=[...(d.suggestions||[]).map(x=>({...x,kind:'Suggestion'})),...(d.complaints||[]).map(x=>({...x,kind:'Complaint'}))].sort((a,b)=>String(b.submitted_at).localeCompare(String(a.submitted_at))).map(x=>`<div class="card mt-1"><strong>${x.kind}: ${esc(x.category)}</strong> ${statusBadge(x.status)}<div class="text-sm mt-1">${esc(x.message)}</div>${x.reply?`<div class="alert alert-info mt-1"><strong>Manager:</strong> ${esc(x.reply)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm mt-2">No suggestions or complaints yet.</div>';}
+document.getElementById('player-shop-content').innerHTML=`<div class="card"><div class="text-muted text-sm">Current balance</div><div style="font-size:2rem;font-weight:800">${balance.toLocaleString()} pts</div></div><div class="grid-3 mt-2">${(d.shop||[]).map(i=>`<div class="card"><div class="fw-700">${esc(i.name)}</div><div class="text-muted text-sm mt-1">${esc(i.description)}</div><div class="mt-2"><strong>${Number(i.price).toLocaleString()} points</strong></div><button class="btn btn-primary btn-sm mt-2" onclick="playerBuyShop('${esc(i.id)}')">Buy</button></div>`).join('')}</div><div class="fw-700 mt-3">My Orders</div>${(d.orders||[]).map(o=>`<div class="card mt-1"><strong>${esc(o.item_name)}</strong> ${statusBadge(o.status)}<div class="text-muted text-sm">${Number(o.price).toLocaleString()} points${o.manager_note?' · '+esc(o.manager_note):''}</div></div>`).join('')||'<div class="text-muted text-sm mt-1">No purchases yet.</div>'}<div class="fw-700 mt-3">My Inventory</div>${(d.inventory||[]).map(i=>`<div class="card mt-1"><strong>${esc(i.item_name||i.name||'Reward')}</strong><div class="text-muted text-sm">Fulfilled${i.fulfilled_at?' · '+esc(String(i.fulfilled_at).slice(0,10)):''}</div></div>`).join('')||'<div class="text-muted text-sm mt-1">No fulfilled rewards yet.</div>'}`;
+renderPlayerConversations(d.conversations||[]);renderPlayerRequests(d.requests||[]);renderPlayerAvailability((d.scrims||[]).filter(s=>!['finished','cancelled'].includes(String(s.status||'scheduled').toLowerCase())));document.getElementById('player-feedback-content').innerHTML=[...(d.suggestions||[]).map(x=>({...x,kind:'Suggestion'})),...(d.complaints||[]).map(x=>({...x,kind:'Complaint'}))].sort((a,b)=>String(b.submitted_at).localeCompare(String(a.submitted_at))).map(x=>`<div class="card mt-1"><strong>${x.kind}: ${esc(x.category)}</strong> ${statusBadge(x.status)}<div class="text-sm mt-1">${esc(x.message)}</div>${x.reply?`<div class="alert alert-info mt-1"><strong>Manager:</strong> ${esc(x.reply)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm mt-2">No suggestions or complaints yet.</div>';}
 async function playerBuyShop(itemId){if(!confirm('Spend points on this reward?'))return;try{await apiPlayer('/player/shop/purchase','POST',{item_id:itemId});toast('Purchase submitted for manager fulfillment.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
 function renderPlayerConversations(items){document.getElementById('player-conversations-content').innerHTML=items.map(c=>`<div class="card" style="margin-bottom:1rem"><div style="display:flex;justify-content:space-between;gap:.5rem"><strong>${esc(c.subject)}</strong>${statusBadge(c.status)}</div><div class="text-muted text-sm">${esc(c.category)} · ${esc(c.id)}</div><div class="chat-thread mt-1">${(c.messages||[]).map(m=>`<div class="chat-msg ${m.sender_type==='manager'?'manager':'player'}"><strong>${esc(m.sender_name)}</strong><div>${esc(m.message)}</div><div class="text-muted" style="font-size:.7rem">${esc((m.created_at||'').slice(0,16).replace('T',' '))}</div></div>`).join('')}</div>${c.status!=='closed'?`<div class="form-group mt-1"><textarea id="reply-${safeid(c.id)}" placeholder="Reply privately..."></textarea></div><button class="btn btn-primary btn-sm" onclick="playerReplyConversation('${esc(c.id)}')">Send Reply</button>`:''}</div>`).join('')||'<div class="text-muted text-sm">No conversations yet.</div>';}
 async function playerStartConversation(){const subject=document.getElementById('pc-subject').value.trim(),category=document.getElementById('pc-category').value,message=document.getElementById('pc-message').value.trim();if(!subject||!message){toast('Subject and message are required.','error');return;}try{await apiPlayer('/player/conversations','POST',{subject,category,message,attachment_url:''});document.getElementById('pc-subject').value='';document.getElementById('pc-message').value='';toast('Private message sent.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
 async function playerReplyConversation(id){const message=document.getElementById('reply-'+safeid(id)).value.trim();if(!message)return;try{await apiPlayer(`/player/conversations/${encodeURIComponent(id)}/messages`,'POST',{message,attachment_url:''});toast('Reply sent.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
 function renderPlayerRequests(items){document.getElementById('player-requests-content').innerHTML=items.map(r=>`<div class="card" style="margin-bottom:.6rem"><div style="display:flex;justify-content:space-between"><strong>${esc(r.request_type)}</strong>${statusBadge(r.status)}</div><div class="text-sm mt-1">${esc(r.details)}</div>${r.reply?`<div class="alert alert-info mt-1"><strong>Manager:</strong> ${esc(r.reply)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm">No requests yet.</div>';}
-async function playerSubmitRequest(){const request_type=document.getElementById('pr-type').value,details=document.getElementById('pr-details').value.trim();if(!details){toast('Explain the request.','error');return;}try{await apiPlayer('/player/requests','POST',{request_type,details,attachment_url:''});document.getElementById('pr-details').value='';toast('Request submitted.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
-function renderPlayerAvailability(scrims){document.getElementById('player-availability-content').innerHTML=scrims.map(s=>`<div class="card" style="margin-bottom:.75rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time)} · ${esc(s.id)}</div><div class="mt-1">Current: ${statusBadge(s.my_status==='going'?'available':s.my_status==='cant'?'unavailable':s.my_status)}</div><div class="form-grid mt-1"><select id="pa-status-${safeid(s.id)}"><option value="going" ${s.my_status==='going'?'selected':''}>Available</option><option value="maybe" ${s.my_status==='maybe'?'selected':''}>Maybe</option><option value="cant" ${s.my_status==='cant'?'selected':''}>Unavailable</option></select><input id="pa-note-${safeid(s.id)}" value="${esc(s.my_note||'')}" placeholder="Optional note"/></div><button class="btn btn-primary btn-sm mt-1" onclick="playerSetAvailability('${esc(s.id)}')">Save Availability</button>${s.lineup?`<div class="alert alert-info mt-1"><strong>Lineup:</strong><br/>${esc(s.lineup)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm">No upcoming matches.</div>';}
+async function playerSubmitRequest(){const request_type=document.getElementById('pr-type').value,details=document.getElementById('pr-details').value.trim(),attachment_url=document.getElementById('pr-attachment')?.value.trim()||'';if(!details){toast('Explain the request.','error');return;}try{await apiPlayer('/player/requests','POST',{request_type,details,attachment_url});document.getElementById('pr-details').value='';if(document.getElementById('pr-attachment'))document.getElementById('pr-attachment').value='';toast('Request submitted.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+function renderPlayerAvailability(scrims){document.getElementById('player-availability-content').innerHTML=scrims.map(s=>`<div class="card" style="margin-bottom:.75rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time||'Time TBD')}</div><div class="mt-1">Current: ${statusBadge(s.my_status==='going'?'available':s.my_status==='cant'?'unavailable':s.my_status)}</div><div class="form-grid mt-1"><select id="pa-status-${safeid(s.id)}"><option value="going" ${s.my_status==='going'?'selected':''}>Available</option><option value="maybe" ${s.my_status==='maybe'?'selected':''}>Maybe</option><option value="cant" ${s.my_status==='cant'?'selected':''}>Unavailable</option></select><input id="pa-note-${safeid(s.id)}" value="${esc(s.my_note||'')}" placeholder="Optional note"/></div><button class="btn btn-primary btn-sm mt-1" onclick="playerSetAvailability('${esc(s.id)}')">Save Availability</button>${s.lineup?`<div class="alert alert-info mt-1"><strong>Lineup:</strong><br/>${esc(s.lineup)}</div>`:''}</div>`).join('')||'<div class="text-muted text-sm">No upcoming matches.</div>';}
 async function playerSetAvailability(id){const status=document.getElementById('pa-status-'+safeid(id)).value,note=document.getElementById('pa-note-'+safeid(id)).value.trim();try{await apiPlayer('/player/availability','POST',{scrim_id:id,status,note});toast('Availability updated.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
 async function playerSubmitSuggestion(){const category=document.getElementById('pf-sug-category').value,message=document.getElementById('pf-sug-message').value.trim();if(!message)return;try{await apiPlayer('/player/suggestions','POST',{category,message});document.getElementById('pf-sug-message').value='';toast('Suggestion sent.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
-async function playerSubmitComplaint(){const category=document.getElementById('pf-cmp-category').value,message=document.getElementById('pf-cmp-message').value.trim();if(!message)return;if(!confirm('Send this complaint privately to management?'))return;try{await apiPlayer('/player/complaints','POST',{category,message,attachment_url:''});document.getElementById('pf-cmp-message').value='';toast('Complaint sent privately.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
+async function playerSubmitComplaint(){const category=document.getElementById('pf-cmp-category').value,message=document.getElementById('pf-cmp-message').value.trim(),attachment_url=document.getElementById('pf-cmp-attachment')?.value.trim()||'';if(!message)return;if(!confirm('Send this complaint privately to management?'))return;try{await apiPlayer('/player/complaints','POST',{category,message,attachment_url});document.getElementById('pf-cmp-message').value='';if(document.getElementById('pf-cmp-attachment'))document.getElementById('pf-cmp-attachment').value='';toast('Complaint sent privately.');refreshPlayerPortal();}catch(err){toast(err.message,'error');}}
 
 // ─── MANAGER ───────────────────────────────────────────────────────────────────
 function refreshManager() {
   if (!getManagerToken()) return;
+  refreshMgrActionCenter();
   refreshMgrApps();
   refreshMgrMatchReports();
   refreshMgrPoints();
@@ -1462,15 +1370,17 @@ function refreshManager() {
 }
 
 function matchPointEstimate(report) {
-  let total = 3;
+  let total = 50;
   const text = String(report.result||'').toUpperCase();
   const score = text.match(/(\d+)\s*[-:]\s*(\d+)/);
   const win = text.trim().startsWith('W') || (score && Number(score[1]) > Number(score[2]));
-  if (win) total += 5;
-  total += Number(report.goals||0) * 10;
-  total += Number(report.assists||0) * 7;
-  total += Number(report.saves||0) * 2;
-  if (score && Number(score[2]) === 0) total += 10;
+  const draw = text.trim().startsWith('D') || (score && Number(score[1]) === Number(score[2]));
+  if (win) total += 100; else if (draw) total += 50;
+  total += Number(report.goals||0) * 150;
+  total += Number(report.assists||0) * 100;
+  total += Math.min(Number(report.saves||0) * 50, 250);
+  if (score && Number(score[2]) === 0) total += 150;
+  if (Number(report.tackles||0) + Number(report.interceptions||0) >= 5) total += 100;
   return total;
 }
 
@@ -1633,6 +1543,8 @@ async function mgrRemovePermissionRole(id, name) {
     refreshMgrPermissionRoles();
   } catch (err) { toast(err.message, 'error'); }
 }
+
+async function refreshMgrActionCenter(){const el=document.getElementById('mgr-action-center');if(!el||!getManagerToken())return;try{const d=await apiAuth('/manager/action-center','GET');const c=d.counts||{};el.innerHTML=`<div class="action-center-grid"><div class="action-center-kpi"><div class="text-muted text-sm">Missing availability</div><div class="portal-kpi">${c.missing_availability||0}</div></div><div class="action-center-kpi"><div class="text-muted text-sm">Pending stat reports</div><div class="portal-kpi">${c.pending_reports||0}</div></div><div class="action-center-kpi"><div class="text-muted text-sm">Active MOTM votes</div><div class="portal-kpi">${c.active_motm||0}</div></div></div><div class="portal-section-title">Upcoming match responses</div>${(d.upcoming||[]).map(s=>`<div class="card" style="margin-bottom:.6rem"><div class="fw-700">vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time||'Time TBD')}</div><div class="mt-1"><strong>Missing:</strong> ${(s.missing||[]).map(p=>esc(p.username||'Player')).join(', ')||'Nobody — all responded'}</div></div>`).join('')||'<div class="text-muted text-sm">No upcoming matches.</div>'}`;}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
 
 async function refreshMgrApps() {
   const el = document.getElementById('mgr-apps-list');
@@ -1817,7 +1729,7 @@ async function mgrUpdateConversation(id){const status=document.getElementById('m
 async function refreshMgrRequests(){const el=document.getElementById('mgr-requests');if(!el||!getManagerToken())return;try{const items=await apiAuth('/manager/requests','GET');el.innerHTML=items.map(r=>`<div class="card" style="margin-bottom:.75rem"><div style="display:flex;justify-content:space-between"><strong>${esc(r.username)} — ${esc(r.request_type)}</strong>${statusBadge(r.status)}</div><div class="text-sm mt-1">${esc(r.details)}</div><div class="form-grid mt-1"><select id="mr-status-${safeid(r.id)}"><option value="pending" ${r.status==='pending'?'selected':''}>Pending</option><option value="reviewing" ${r.status==='reviewing'?'selected':''}>Reviewing</option><option value="needs_info" ${r.status==='needs_info'?'selected':''}>Needs Info</option><option value="accepted" ${r.status==='accepted'?'selected':''}>Accepted</option><option value="declined" ${r.status==='declined'?'selected':''}>Declined</option><option value="completed" ${r.status==='completed'?'selected':''}>Completed</option></select><input id="mr-reply-${safeid(r.id)}" value="${esc(r.reply||'')}" placeholder="Reply shown to player"/></div><div class="form-group mt-1"><input id="mr-note-${safeid(r.id)}" value="${esc(r.private_note||'')}" placeholder="Private manager note"/></div><button class="btn btn-primary btn-sm" onclick="mgrUpdateRequest('${esc(r.id)}')">Save Request</button></div>`).join('')||'<div class="text-muted text-sm">No player requests.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
 async function mgrUpdateRequest(id){const status=document.getElementById('mr-status-'+safeid(id)).value,reply=document.getElementById('mr-reply-'+safeid(id)).value.trim(),private_note=document.getElementById('mr-note-'+safeid(id)).value.trim();try{await apiAuth(`/manager/requests/${encodeURIComponent(id)}`,'PATCH',{status,reviewed_by:getManagerUser()||'Manager',reply,private_note});toast('Request updated.');refreshMgrRequests();}catch(err){toast(err.message,'error');}}
 function mgrAvailList(list){return list.map(x=>`${esc(x.username)}${x.note?' — '+esc(x.note):''}`).join('<br/>')||'—';}
-async function refreshMgrAvailability(){const el=document.getElementById('mgr-availability');if(!el||!getManagerToken())return;try{const matches=await apiAuth('/manager/availability','GET');el.innerHTML=matches.map(s=>`<div class="card" style="margin-bottom:1rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time)} · ${esc(s.id)}</div><div class="grid-3 mt-1"><div><strong>✅ Available</strong><div class="text-sm">${mgrAvailList(s.availability.going||[])}</div></div><div><strong>🟡 Maybe</strong><div class="text-sm">${mgrAvailList(s.availability.maybe||[])}</div></div><div><strong>❌ Unavailable</strong><div class="text-sm">${mgrAvailList(s.availability.cant||[])}</div></div></div><div class="alert alert-info mt-1"><strong>Missing responses:</strong> ${(s.missing||[]).map(p=>esc(p.username)).join(', ')||'None'}</div><div class="form-group"><label>Working Lineup</label><textarea id="ml-lineup-${safeid(s.id)}">${esc(s.lineup||'')}</textarea></div><div class="form-group"><label>Lineup Notes</label><textarea id="ml-notes-${safeid(s.id)}">${esc(s.lineup_notes||'')}</textarea></div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="mgrSaveLineup('${esc(s.id)}')">Save Lineup</button><button class="btn btn-yellow btn-sm" onclick="mgrRemindAvailability('${esc(s.id)}')">Remind Missing Players</button></div></div>`).join('')||'<div class="text-muted text-sm">No matches.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+async function refreshMgrAvailability(){const el=document.getElementById('mgr-availability');if(!el||!getManagerToken())return;try{const matches=await apiAuth('/manager/availability','GET');el.innerHTML=matches.map(s=>`<div class="card" style="margin-bottom:1rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time||'Time TBD')}</div><div class="grid-3 mt-1"><div><strong>✅ Available</strong><div class="text-sm">${mgrAvailList(s.availability.going||[])}</div></div><div><strong>🟡 Maybe</strong><div class="text-sm">${mgrAvailList(s.availability.maybe||[])}</div></div><div><strong>❌ Unavailable</strong><div class="text-sm">${mgrAvailList(s.availability.cant||[])}</div></div></div><div class="alert alert-info mt-1"><strong>Missing responses:</strong> ${(s.missing||[]).map(p=>esc(p.username)).join(', ')||'None'}</div><div class="form-group"><label>Working Lineup</label><textarea id="ml-lineup-${safeid(s.id)}">${esc(s.lineup||'')}</textarea></div><div class="form-group"><label>Lineup Notes</label><textarea id="ml-notes-${safeid(s.id)}">${esc(s.lineup_notes||'')}</textarea></div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="mgrSaveLineup('${esc(s.id)}')">Save Lineup</button><button class="btn btn-yellow btn-sm" onclick="mgrRemindAvailability('${esc(s.id)}')">Remind Missing Players</button></div></div>`).join('')||'<div class="text-muted text-sm">No matches.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
 async function mgrSaveLineup(id){const lineup=document.getElementById('ml-lineup-'+safeid(id)).value,notes=document.getElementById('ml-notes-'+safeid(id)).value;try{await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/lineup`,'PATCH',{lineup,notes,updated_by:getManagerUser()||'Manager'});toast('Lineup saved.');refreshMgrAvailability();}catch(err){toast(err.message,'error');}}
 async function mgrRemindAvailability(id){if(!confirm('DM every roster player who has not responded?'))return;try{const result=await apiAuth(`/manager/scrims/${encodeURIComponent(id)}/remind`,'POST');toast(`Reminder requested for ${result.sent_to} player(s).`);}catch(err){toast(err.message,'error');}}
 
@@ -2024,7 +1936,7 @@ async function mgrAddTrophy(){try{await apiAuth('/manager/trophies','POST',{name
 async function mgrAddAward(){try{await apiAuth('/manager/awards','POST',{title:document.getElementById('dyn-award-title').value,winner:document.getElementById('dyn-award-winner').value,discord_id:document.getElementById('dyn-award-id').value,period:document.getElementById('dyn-award-period').value||'Season',reason:document.getElementById('dyn-award-reason').value,awarded_by:getManagerUser()||'Manager'});toast('Award added.');refreshMgrDynasty();refreshClub();}catch(err){toast(err.message,'error');}}
 
 // Replace the old text-area lineup manager with availability-only cards.
-async function refreshMgrAvailability(){const el=document.getElementById('mgr-availability');if(!el||!getManagerToken())return;try{const matches=await apiAuth('/manager/availability','GET');el.innerHTML=matches.map(s=>`<div class="card" style="margin-bottom:1rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time)} · ${esc(s.id)}</div><div class="grid-3 mt-1"><div><strong>✅ Available</strong><div class="text-sm">${mgrAvailList(s.availability.going||[])}</div></div><div><strong>🟡 Maybe</strong><div class="text-sm">${mgrAvailList(s.availability.maybe||[])}</div></div><div><strong>❌ Unavailable</strong><div class="text-sm">${mgrAvailList(s.availability.cant||[])}</div></div></div><div class="alert alert-info mt-1"><strong>Missing responses:</strong> ${(s.missing||[]).map(p=>esc(p.username)).join(', ')||'None'}</div><button class="btn btn-yellow btn-sm" onclick="mgrRemindAvailability('${esc(s.id)}')">Remind Missing Players</button></div>`).join('')||'<div class="text-muted text-sm">No matches.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
+async function refreshMgrAvailability(){const el=document.getElementById('mgr-availability');if(!el||!getManagerToken())return;try{const matches=await apiAuth('/manager/availability','GET');el.innerHTML=matches.map(s=>`<div class="card" style="margin-bottom:1rem"><div class="fw-700">${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm">${esc(s.match_time||'Time TBD')}</div><div class="grid-3 mt-1"><div><strong>✅ Available</strong><div class="text-sm">${mgrAvailList(s.availability.going||[])}</div></div><div><strong>🟡 Maybe</strong><div class="text-sm">${mgrAvailList(s.availability.maybe||[])}</div></div><div><strong>❌ Unavailable</strong><div class="text-sm">${mgrAvailList(s.availability.cant||[])}</div></div></div><div class="alert alert-info mt-1"><strong>Missing responses:</strong> ${(s.missing||[]).map(p=>esc(p.username)).join(', ')||'None'}</div><button class="btn btn-yellow btn-sm" onclick="mgrRemindAvailability('${esc(s.id)}')">Remind Missing Players</button></div>`).join('')||'<div class="text-muted text-sm">No matches.</div>';}catch(err){el.innerHTML=`<div class="alert alert-error">${esc(err.message)}</div>`;}}
 
 
 // Preserve public RSVP controls in the V5 Scrims page.
@@ -2037,19 +1949,7 @@ function renderScrimV5(s){
   return `<div class="broadcast-card" id="scrim-${esc(s.id)}" style="margin-bottom:1rem"><div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap"><div><div class="fw-700" style="font-size:1.15rem">${status==='live'?'📺 LIVE · ':status==='finished'?'🏁 ':status==='cancelled'?'🚫 ':'⚽ '}${esc(s.match_type)} vs ${esc(s.opponent)}</div><div class="text-muted text-sm mt-1">${esc(s.match_time)} · ${esc(s.id)}</div></div><span class="badge ${status==='live'?'badge-red':status==='finished'?'badge-green':status==='cancelled'?'badge-red':'badge-blue'}">${esc(status.toUpperCase())}</span></div>${status==='live'||status==='finished'?`<div class="live-score mt-2">Project Azure ${b.home_score||0} — ${b.away_score||0} ${esc(s.opponent)}</div>`:''}<div class="grid-3 mt-2"><div>✅ ${goingNames.length} going</div><div>🟡 ${maybeNames.length} maybe</div><div>❌ ${cantNames.length} unavailable</div></div><div class="mt-1">${lineup.published?'<span class="badge badge-green">Lineup Published</span>':'<span class="badge badge-yellow">Lineup Pending</span>'}</div>${(b.events||[]).length?`<div class="event-timeline mt-2">${b.events.slice(-6).reverse().map(e=>`<div class="event-item">${esc(e.minute?e.minute+'′ ':'')}${esc(e.event_type)} · <strong>${esc(e.player||'Team Update')}</strong>${e.detail?' — '+esc(e.detail):''}</div>`).join('')}</div>`:''}${lineup.published?`<details class="mt-2"><summary class="fw-700">View Starting Lineup &amp; Bench</summary><div class="mt-1"><strong>Starters:</strong> ${lineup.players.filter(p=>p.slot==='starter').map(p=>esc(p.username)).join(', ')||'—'}<br/><strong>Bench:</strong> ${lineup.players.filter(p=>p.slot==='bench').map(p=>esc(p.username)).join(', ')||'—'}</div></details>`:''}${rsvpDetails}${rsvpButtons}</div>`;
 }
 
-async function scrimRSVP(scrimId,status){
-  const username=prompt('Enter your VRFS username:');
-  if(!username?.trim())return;
-  const discordId=`web_${username.trim().replace(/\s+/g,'_')}`;
-  try{
-    const scrim=await apiFetch(`/scrims/${encodeURIComponent(scrimId)}/rsvp`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({discord_id:discordId,username:username.trim(),status})});
-    SESSION_RSVP[scrimId]=status;
-    const index=ALL_SCRIMS.findIndex(x=>x.id===scrim.id);
-    if(index>=0)ALL_SCRIMS[index]=scrim;else ALL_SCRIMS.push(scrim);
-    toast({going:"You're going ✅",maybe:'Marked as maybe 🟡',cant:"Can't go ❌"}[status]);
-    renderScrimListV5();
-  }catch(err){toast(err.message,'error');}
-}
+async function scrimRSVP(scrimId,status){ openPortalPanel('player-availability'); toast('Availability is saved from your secure Player Portal.'); }
 
 function onWSScrimRSVP(s){
   const index=ALL_SCRIMS.findIndex(x=>x.id===s.id);
@@ -2062,7 +1962,7 @@ const _showPageV4=showPage;showPage=function(id){_showPageV4(id);if(id==='tv')re
 const _openTabV4=openTab;openTab=function(id,btn){_openTabV4(id,btn);if(id==='tab-lineup-builder')loadLineupBuilder();if(id==='tab-scrim-control')refreshMgrScrimControl();if(id==='tab-tv-manager')loadTVManager();if(id==='tab-dynasty')refreshMgrDynasty();};
 const _handleWSV4=handleWS;handleWS=function(payload){_handleWSV4(payload);if(['scrim_updated','lineup_updated','broadcast_updated','broadcast_finished'].includes(payload.event)){refreshScrims();if(document.getElementById('page-tv')?.classList.contains('active'))refreshTV();if(getManagerToken()){refreshMgrScrimControl();refreshMgrTVPreview();}}if(['season_updated','dynasty_updated'].includes(payload.event)){refreshClub();if(getManagerToken())refreshMgrDynasty();}};
 
-window.addEventListener('load',()=>{const q=new URLSearchParams(location.search),page=q.get('page'),player=q.get('player');if(page==='profile'&&player){showPage('profile');openPublicProfile(player);}else if(page&&document.getElementById('page-'+page))showPage(page);});
+window.addEventListener('load',()=>{const q=new URLSearchParams(location.search),page=q.get('page'),player=q.get('player'),panel=q.get('panel');if(page==='profile'&&player){showPage('profile');openPublicProfile(player);}else if(page&&document.getElementById('page-'+page)){showPage(page);if(page==='player'&&panel&&getPlayerToken())setTimeout(()=>openPlayerPanelById(panel),50);}});
 
 </script>
 </body>

@@ -26,71 +26,32 @@ class ShopCog(commands.Cog):
 
     shop_group = app_commands.Group(name="shop", description="Spend PJA points on rewards")
 
-    @shop_group.command(name="view", description="View available PJA shop rewards")
+    @shop_group.command(name="view", description="Open the PJA shop in the Player Portal")
     async def view(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        try:
-            items = await api.get_shop()
-            profile = await api.get_points(str(interaction.user.id))
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-
-        embed = pja_embed(
-            "Project Azure — Points Shop",
-            f"Your balance: **{profile.get('balance', 0):,} points**\nBuy with `/shop buy`. Purchases wait for manager fulfillment.",
-            PURPLE,
+        await send_portal_redirect(
+            interaction,
+            "PJA Shop — Player Portal",
+            "Browse rewards, see your balance, and track orders from the website.",
+            "player-shop",
         )
-        for item in items:
-            embed.add_field(
-                name=f"{item['name']} — {item['price']:,} pts",
-                value=item["description"],
-                inline=False,
-            )
-        await interaction.followup.send(embed=embed)
 
-    @shop_group.command(name="buy", description="Buy a reward with your PJA points")
-    @app_commands.describe(item="Reward to purchase")
-    @app_commands.choices(item=SHOP_CHOICES)
-    async def buy(self, interaction: discord.Interaction, item: app_commands.Choice[str]):
-        await interaction.response.defer(ephemeral=True)
-        try:
-            order = await api.purchase_shop_item(str(interaction.user.id), interaction.user.display_name, item.value)
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-
-        embed = pja_embed(
-            "Purchase Submitted",
-            f"You bought **{order['item_name']}** for **{order['price']:,} points**.",
-            GREEN,
+    @shop_group.command(name="buy", description="Purchase rewards in the Player Portal")
+    async def buy(self, interaction: discord.Interaction):
+        await send_portal_redirect(
+            interaction,
+            "Buy Rewards — Player Portal",
+            "Purchases now happen in the secure Player Portal so your balance, orders, and inventory stay together.",
+            "player-shop",
         )
-        embed.add_field(name="Order ID", value=f"`{order['id']}`", inline=True)
-        embed.add_field(name="Status", value="Pending manager fulfillment", inline=True)
-        embed.add_field(name="Remaining Balance", value=f"{order.get('balance_after', 0):,} points", inline=False)
-        await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="inventory", description="View fulfilled PJA shop rewards")
-    @app_commands.describe(player="Player to view; leave blank for yourself")
-    async def inventory(self, interaction: discord.Interaction, player: discord.Member = None):
-        target = player or interaction.user
-        await interaction.response.defer()
-        try:
-            items = await api.get_inventory(str(target.id))
-            orders = await api.get_player_orders(str(target.id))
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-
-        embed = pja_embed(f"{target.display_name} — Inventory", "Fulfilled rewards and pending purchases.", PURPLE)
-        if items:
-            embed.add_field(name="Owned Rewards", value="\n".join(f"• {entry['item_name']}" for entry in items[:15]), inline=False)
-        else:
-            embed.add_field(name="Owned Rewards", value="No fulfilled rewards yet.", inline=False)
-        pending = [order for order in orders if order.get("status") == "pending"]
-        if pending:
-            embed.add_field(name="Pending Orders", value="\n".join(f"• {order['item_name']} (`{order['id']}`)" for order in pending[:10]), inline=False)
-        await interaction.followup.send(embed=embed)
+    @app_commands.command(name="inventory", description="Open your inventory in the Player Portal")
+    async def inventory(self, interaction: discord.Interaction):
+        await send_portal_redirect(
+            interaction,
+            "My Inventory — Player Portal",
+            "Fulfilled rewards and pending purchases are now in the website Shop tab.",
+            "player-shop",
+        )
 
 
 async def setup(bot):

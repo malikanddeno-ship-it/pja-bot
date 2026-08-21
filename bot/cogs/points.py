@@ -13,24 +13,14 @@ class PointsCog(commands.Cog):
 
     points_group = app_commands.Group(name="points", description="Project Azure points commands")
 
-    @points_group.command(name="view", description="View your points or another player's points")
-    @app_commands.describe(player="Player to view; leave blank for yourself")
-    async def view(self, interaction: discord.Interaction, player: discord.Member = None):
-        target = player or interaction.user
-        await interaction.response.defer()
-        try:
-            profile = await api.get_points(str(target.id))
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-
-        embed = pja_embed(
-            f"{target.display_name} — PJA Points",
-            f"Current balance: **{profile.get('balance', 0):,} points**",
-            BLUE,
+    @points_group.command(name="view", description="Open your points balance in the Player Portal")
+    async def view(self, interaction: discord.Interaction):
+        await send_portal_redirect(
+            interaction,
+            "My Points — Player Portal",
+            "Your balance, recent point changes, approved matches, and profile are together on the website.",
+            "player-overview",
         )
-        embed.set_thumbnail(url=target.display_avatar.url)
-        await interaction.followup.send(embed=embed)
 
     @points_group.command(name="leaderboard", description="View the PJA points leaderboard")
     async def leaderboard(self, interaction: discord.Interaction):
@@ -52,35 +42,14 @@ class PointsCog(commands.Cog):
             lines.append(f"{prefix} **{entry.get('username', 'Unknown')}** — {entry.get('balance', 0):,} pts")
         await interaction.followup.send(embed=pja_embed("Project Azure — Points Leaderboard", "\n".join(lines), BLUE))
 
-    @points_group.command(name="history", description="View recent point changes")
-    @app_commands.describe(player="Player to view; leave blank for yourself")
-    async def history(self, interaction: discord.Interaction, player: discord.Member = None):
-        target = player or interaction.user
-        await interaction.response.defer(ephemeral=True)
-        try:
-            history = await api.get_points_history(str(target.id))
-            profile = await api.get_points(str(target.id))
-        except APIError as error:
-            await interaction.followup.send(embed=api_error_embed(error), ephemeral=True)
-            return
-
-        embed = pja_embed(
-            f"{target.display_name} — Points History",
-            f"Balance: **{profile.get('balance', 0):,} points**",
-            BLUE,
+    @points_group.command(name="history", description="Open your point history in the Player Portal")
+    async def history(self, interaction: discord.Interaction):
+        await send_portal_redirect(
+            interaction,
+            "Point History — Player Portal",
+            "Recent point changes and your current balance are now shown in your private Player Portal.",
+            "player-overview",
         )
-        if not history:
-            embed.add_field(name="Recent changes", value="No point changes yet.", inline=False)
-        else:
-            for entry in history[:10]:
-                amount = int(entry.get("amount", 0))
-                sign = "+" if amount >= 0 else ""
-                embed.add_field(
-                    name=f"{sign}{amount:,} points",
-                    value=f"{entry.get('reason', 'No reason')}\nBalance after: {entry.get('balance_after', 0):,}",
-                    inline=False,
-                )
-        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @points_group.command(name="give", description="Give points to a player")
     @is_manager()

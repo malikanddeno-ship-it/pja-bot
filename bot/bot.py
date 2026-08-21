@@ -107,29 +107,29 @@ def build_commands_embed() -> discord.Embed:
             "/card view - Generate a PJA player card and open the full website profile",
         ],
         "Stats": [
-            "/stats submit - Submit a report for manager approval",
+            "/stats submit - Open Match Stats in the Player Portal",
             "/stats view - View approved season stats",
             "/stats leaderboard - View the team leaderboard",
         ],
         "Points": [
-            "/points view - View a player's balance",
+            "/points view - Open your points in the Player Portal",
             "/points leaderboard - View the points leaderboard",
-            "/points history - View recent point changes",
+            "/points history - Open point history in the Player Portal",
             "/points give, remove, set - Manage balances 🔒",
         ],
         "Shop": [
-            "/shop view - View available rewards",
-            "/shop buy - Purchase a reward with points",
-            "/inventory - View fulfilled and pending rewards",
+            "/shop view - Open the Player Portal shop",
+            "/shop buy - Purchase rewards in the Player Portal",
+            "/inventory - Open your Player Portal inventory",
         ],
         "Player Portal": [
             "/portal login - Create a secure one-use website login code",
-            "/talk manager - Start a private conversation with management",
-            "/request submit - Send a player request",
-            "/request status - View your request updates",
-            "/availability set - Set match availability and a note",
-            "/availability view - View your upcoming responses",
-            "/history - View approved match history",
+            "/talk manager - Open private manager chat in the Player Portal",
+            "/request submit - Open Player Requests in the Player Portal",
+            "/request status - Open request updates in the Player Portal",
+            "/availability set - Open Availability in the Player Portal",
+            "/availability view - Open upcoming availability in the Player Portal",
+            "/history - Open card and match history in the Player Portal",
         ],
         "Activity Review": [
             "/kickwave start - Review inactive members one at a time 🔒",
@@ -144,10 +144,10 @@ def build_commands_embed() -> discord.Embed:
             "/welcome disable - Turn welcomes off 🔒",
         ],
         "Suggestions & Complaints": [
-            "/suggest submit - Send an idea privately",
-            "/suggest status - Check suggestion updates",
-            "/complaint submit - Send a private complaint",
-            "/complaint status - Check complaint updates",
+            "/suggest submit - Open suggestions in the Player Portal",
+            "/suggest status - Open suggestion updates in the Player Portal",
+            "/complaint submit - Open private complaints in the Player Portal",
+            "/complaint status - Open complaint updates in the Player Portal",
         ],
         "MOTM": [
             "/motm start - Start a MOTM vote 🔒",
@@ -610,7 +610,7 @@ async def on_availability_reminder_requested(scrim: dict):
             f"Time: **{scrim.get('match_time', 'TBD')}**\nMatch ID: `{scrim.get('id', '—')}`",
             YELLOW,
         )
-        embed.add_field(name="How to respond", value="Use `/availability set` and choose this match from the dropdown, or sign in to the player portal.", inline=False)
+        embed.add_field(name="How to respond", value="Open the Player Portal and set your availability there. Use `/portal login` if you need a fresh one-use login code.", inline=False)
         try:
             await member.send(embed=embed)
         except discord.Forbidden:

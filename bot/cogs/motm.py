@@ -151,10 +151,15 @@ class MOTMStartMatchSelect(discord.ui.Select):
         embed.add_field(name="Match", value=_match_title(scrim), inline=False)
         embed.add_field(name="Eligible Players", value="\n".join(f"• {name}" for name in nominee_names), inline=False)
         embed.set_author(name="Project Azure", icon_url=interaction.guild.icon.url if interaction.guild and interaction.guild.icon else None)
-        vote_view = MOTMVoteView(
-            nominees=[(player["discord_id"], player["username"]) for player in participants],
-            match_id=poll["id"],
-        )
+        vote_view = None
+        if PUBLIC_PORTAL_URL:
+            vote_view = discord.ui.View(timeout=None)
+            vote_view.add_item(discord.ui.Button(
+                label="Vote in Player Portal",
+                url=f"{PUBLIC_PORTAL_URL}?page=player&panel=player-motm",
+                emoji="⭐",
+            ))
+        embed.description = "MOTM voting is Player-Portal only in V6. Log in with `/portal login`, then cast one secure vote on the website."
         if interaction.channel is None:
             await interaction.edit_original_response(embed=pja_embed("Channel Missing", "I could not post the vote in this channel.", RED), view=None)
             return
